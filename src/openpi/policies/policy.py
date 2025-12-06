@@ -68,6 +68,8 @@ class Policy(BasePolicy):
     def infer(self, obs: dict, *, noise: np.ndarray | None = None) -> dict:  # type: ignore[misc]
         # Make a copy since transformations may modify the inputs in place.
         inputs = jax.tree.map(lambda x: x, obs)
+        print("input before transform:", inputs["state"])
+        print("input before transform (degrees):", inputs["state"] * 180.0 / np.pi)
         inputs = self._input_transform(inputs)
         if not self._is_pytorch_model:
             # Make a batch and convert to jax.Array.
@@ -98,8 +100,9 @@ class Policy(BasePolicy):
             outputs = jax.tree.map(lambda x: np.asarray(x[0, ...].detach().cpu()), outputs)
         else:
             outputs = jax.tree.map(lambda x: np.asarray(x[0, ...]), outputs)
-
         outputs = self._output_transform(outputs)
+        print("output after transform:", outputs["actions"][:2])
+        print("output after transform (degrees):", outputs["actions"][:2] * 180.0 / np.pi)
         outputs["policy_timing"] = {
             "infer_ms": model_time * 1000,
         }

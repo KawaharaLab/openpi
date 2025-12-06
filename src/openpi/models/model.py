@@ -311,6 +311,14 @@ def restore_params(
         sharding = jax.sharding.NamedSharding(mesh, jax.sharding.PartitionSpec())
 
     with ocp.PyTreeCheckpointer() as ckptr:
+        handler = getattr(ckptr, "handler", None)
+        # Orbax defaults to limiting concurrent bytes via asyncio.Condition, which
+        # raises on Python 3.10 due to loop mismatches. Clearing the byte limiter
+        # opts into the unlimited path and avoids the ValueError while keeping
+        # semantics identical for our small checkpoint loads.
+        for candidate in (handler, getattr(handler, "_handler_impl", None)):
+            if candidate is not None and hasattr(candidate, "_restore_concurrent_bytes"):
+                candidate._restore_concurrent_bytes = None
         metadata = ckptr.metadata(params_path)
         item = {"params": metadata["params"]}
 

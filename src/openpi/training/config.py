@@ -20,6 +20,7 @@ import openpi.models.tokenizer as _tokenizer
 import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
+import openpi.policies.ur3_robotiq_policy as ur3_robotiq_policy
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
 import openpi.training.droid_rlds_dataset as droid_rlds_dataset
@@ -628,6 +629,20 @@ _CONFIGS = [
             ),
             base_config=DataConfig(
                 prompt_from_task=True,
+            ),
+        ),
+    ),
+    #
+    # UR3 + Robotiq inference config.
+    #
+    TrainConfig(
+        name="pi0_ur3_robotiq",
+        model=pi0_config.Pi0Config(),
+        data=SimpleDataConfig(
+            assets=AssetsConfig(asset_id="ur5e"),
+            data_transforms=lambda model: _transforms.Group(
+                inputs=[ur3_robotiq_policy.Ur3RobotiqInputs(model_type=model.model_type)],
+                outputs=[ur3_robotiq_policy.Ur3RobotiqOutputs()],
             ),
         ),
     ),
