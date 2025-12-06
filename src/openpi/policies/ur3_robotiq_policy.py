@@ -1,32 +1,70 @@
-"""Transforms for running Pi0 on a UR3 arm with a Robotiq gripper."""
+"""Transforms for running Pi0/Pi05 on a UR3 arm with a Robotiq gripper."""
 
 from __future__ import annotations
 
+import csv
 import dataclasses
+from pathlib import Path
 from typing import ClassVar
 
 import numpy as np
+from PIL import Image
 
 from openpi import transforms
 from openpi.models import model as _model
 
 
+_EXAMPLE_ROOT = Path(__file__).resolve().parents[3] / "data" / "example"
+_EXAMPLE_CSV = _EXAMPLE_ROOT / "example.csv"
+_STATE_KEYS = (
+    "shoulder_pan_joint",
+    "shoulder_lift_joint",
+    "elbow_joint",
+    "wrist_1_joint",
+    "wrist_2_joint",
+    "wrist_3_joint",
+    "robotiq_finger_distance",
+)
+
+
 def make_ur3_example() -> dict:
     """Create a representative observation for sanity checks."""
 
+    if not _EXAMPLE_CSV.exists():
+        raise FileNotFoundError(f"UR3 example CSV not found: {_EXAMPLE_CSV}")
+
+    with _EXAMPLE_CSV.open("r", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        try:
+            row = next(reader)
+        except StopIteration as exc:
+            raise ValueError("UR3 example CSV is empty") from exc
+
+    state = np.array([float(row[key]) for key in _STATE_KEYS], dtype=np.float32)
+
+    def load_image(column: str) -> np.ndarray:
+        rel_path = row[column]
+        image_path = (_EXAMPLE_ROOT / rel_path).resolve()
+        if not image_path.is_file():
+            raise FileNotFoundError(f"Example image not found: {image_path}")
+        image = Image.open(image_path).convert("RGB")
+        return np.asarray(image, dtype=np.uint8)
+
+    images = {
+        "cam_high": load_image("fixed_image"),
+        "cam_left_wrist": load_image("wrist_image"),
+    }
+
     return {
-        "state": np.zeros(7, dtype=np.float32),
-        "images": {
-            "cam_high": np.zeros((224, 224, 3), dtype=np.uint8),
-            "cam_left_wrist": np.zeros((224, 224, 3), dtype=np.uint8),
-        },
-        "prompt": "Pick up the object",
+        "state": state,
+        "images": images,
+        "prompt": "Pick up the blue cube.",
     }
 
 
 @dataclasses.dataclass(frozen=True)
 class Ur3RobotiqInputs(transforms.DataTransformFn):
-    """Map UR3 observations into the Pi0 observation schema."""
+    """Map UR3 observations into the Pi0/Pi05 observation schema."""
 
     model_type: _model.ModelType = _model.ModelType.PI0
 

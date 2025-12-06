@@ -646,6 +646,17 @@ _CONFIGS = [
             ),
         ),
     ),
+    TrainConfig(
+        name="pi05_ur3_robotiq",
+        model=pi0_config.Pi0Config(pi05=True),
+        data=SimpleDataConfig(
+            assets=AssetsConfig(asset_id="ur5e"),
+            data_transforms=lambda model: _transforms.Group(
+                inputs=[ur3_robotiq_policy.Ur3RobotiqInputs(model_type=model.model_type)],
+                outputs=[ur3_robotiq_policy.Ur3RobotiqOutputs()],
+            ),
+        ),
+    ),
     #
     # Fine-tuning Libero configs.
     #
