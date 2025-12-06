@@ -1,0 +1,2 @@
+wrist_image,fixed_image,shoulder_pan_joint,shoulder_lift_joint,elbow_joint,wrist_1_joint,wrist_2_joint,wrist_3_joint,robotiq_finger_distance
+images/wrist.png,images/fixed.png,2.74,-1.65,0.49,-1.55,-0.45,0.18,0.5
