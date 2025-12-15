@@ -638,11 +638,34 @@ _CONFIGS = [
     TrainConfig(
         name="pi0_ur3_robotiq",
         model=pi0_config.Pi0Config(),
+        num_train_steps=1000,
+        log_interval=10,
+        save_interval=500,
+        pytorch_weight_path="/home/user/.cache/openpi/openpi-assets/checkpoints/pi0_base_pytorch/",
         data=SimpleDataConfig(
-            assets=AssetsConfig(asset_id="ur5e"),
+            repo_id="uzumi-bi/pick_and_place_ur3",
+            assets=AssetsConfig(),
             data_transforms=lambda model: _transforms.Group(
                 inputs=[ur3_robotiq_policy.Ur3RobotiqInputs(model_type=model.model_type)],
                 outputs=[ur3_robotiq_policy.Ur3RobotiqOutputs()],
+            ),
+            base_config=DataConfig(
+                prompt_from_task=True,
+                repack_transforms=_transforms.Group(
+                    inputs=[
+                        _transforms.RepackTransform(
+                            {
+                                "images": {
+                                    "cam_high": "images.cam_high",
+                                    "cam_left_wrist": "images.cam_left_wrist",
+                                },
+                                "state": "state",
+                                "actions": "actions",
+                                "prompt": "prompt",
+                            }
+                        )
+                    ]
+                ),
             ),
         ),
     ),
@@ -650,10 +673,29 @@ _CONFIGS = [
         name="pi05_ur3_robotiq",
         model=pi0_config.Pi0Config(pi05=True),
         data=SimpleDataConfig(
-            assets=AssetsConfig(asset_id="ur5e"),
+            repo_id="pick_and_place_lerobot",
+            assets=AssetsConfig(),
             data_transforms=lambda model: _transforms.Group(
                 inputs=[ur3_robotiq_policy.Ur3RobotiqInputs(model_type=model.model_type)],
                 outputs=[ur3_robotiq_policy.Ur3RobotiqOutputs()],
+            ),
+            base_config=DataConfig(
+                prompt_from_task=True,
+                repack_transforms=_transforms.Group(
+                    inputs=[
+                        _transforms.RepackTransform(
+                            {
+                                "images": {
+                                    "cam_high": "images.cam_high",
+                                    "cam_left_wrist": "images.cam_left_wrist",
+                                },
+                                "state": "state",
+                                "actions": "actions",
+                                "prompt": "prompt",
+                            }
+                        )
+                    ]
+                ),
             ),
         ),
     ),

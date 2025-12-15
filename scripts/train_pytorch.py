@@ -28,6 +28,7 @@ import gc
 import logging
 import os
 import platform
+import pickle
 import shutil
 import time
 
@@ -81,12 +82,11 @@ def init_wandb(config: _config.TrainConfig, *, resuming: bool, enabled: bool = T
 
     if resuming:
         run_id = (ckpt_dir / "wandb_id.txt").read_text().strip()
-        wandb.init(id=run_id, resume="must", project=config.project_name)
+        wandb.init(id=run_id, resume="must", project=config.name)
     else:
         wandb.init(
-            name=config.exp_name,
             config=dataclasses.asdict(config),
-            project=config.project_name,
+            project=config.name,
         )
         (ckpt_dir / "wandb_id.txt").write_text(wandb.run.id)
 
@@ -169,10 +169,24 @@ def save_checkpoint(model, optimizer, global_step, config, is_main, data_config)
         # Save optimizer state using PyTorch format
         torch.save(optimizer.state_dict(), tmp_ckpt_dir / "optimizer.pt")
 
+        def _make_pickleable(obj):
+            """Convert objects (e.g., lambdas in config) into pickle-friendly values."""
+            if isinstance(obj, dict):
+                return {k: _make_pickleable(v) for k, v in obj.items()}
+            if isinstance(obj, (list, tuple)):
+                return type(obj)(_make_pickleable(v) for v in obj)
+            if isinstance(obj, set):
+                return {_make_pickleable(v) for v in obj}
+            try:
+                pickle.dumps(obj)
+                return obj
+            except Exception:
+                return repr(obj)
+
         # Save training metadata (avoid saving full config to prevent JAX/Flax compatibility issues)
         metadata = {
             "global_step": global_step,
-            "config": dataclasses.asdict(config),
+            "config": _make_pickleable(dataclasses.asdict(config)),
             "timestamp": time.time(),
         }
         torch.save(metadata, tmp_ckpt_dir / "metadata.pt")
@@ -372,11 +386,33 @@ def train_loop(config: _config.TrainConfig):
         images_to_log = []
         # Get batch size from the first image tensor
         batch_size = next(iter(sample_batch["image"].values())).shape[0]
+
+        def _to_hwc_uint8(img: torch.Tensor) -> np.ndarray:
+            """Convert image tensor to HWC uint8 for logging."""
+            if img.ndim != 3:
+                raise ValueError(f"Expected 3D image tensor, got shape {img.shape}")
+
+            # If channel-first, move channels to the end; otherwise assume already HWC.
+            if img.shape[0] in (1, 3) and img.shape[0] <= img.shape[-1]:
+                img = img.permute(1, 2, 0)
+            np_img = img.detach().cpu().numpy()
+            if np_img.dtype != np.uint8:
+                print(f"{np_img.dtype}, {np_img.min()}, {np_img.max()}")
+                # Handle floats in [0,1] or [-1,1]; clip to [0,255]
+                np_img = np_img.astype(np.float32)
+                if np_img.min() >= -1.0 and np_img.max() <= 1.0:
+                    np_img = (np_img + 1.0) / 2.0
+                np_img = np.clip(np_img, 0.0, 1.0) * 255.0
+                np_img = np_img.astype(np.uint8)
+            return np_img
+
         for i in range(min(5, batch_size)):
             # Concatenate all camera views horizontally for this batch item
-            # Convert from NCHW to NHWC format for wandb
-            img_concatenated = torch.cat([img[i].permute(1, 2, 0) for img in sample_batch["image"].values()], axis=1)
-            img_concatenated = img_concatenated.cpu().numpy()
+            img_concatenated = np.concatenate(
+                [_to_hwc_uint8(img[i]) for img in sample_batch["image"].values()],
+                axis=1,
+            )
+            print(f"Sample image {i} shape: {img_concatenated.shape}")
             images_to_log.append(wandb.Image(img_concatenated))
 
         wandb.log({"camera_views": images_to_log}, step=0)
@@ -614,6 +650,24 @@ def train_loop(config: _config.TrainConfig):
     # Close progress bar
     if pbar is not None:
         pbar.close()
+
+    # Log any remaining metrics that didn't hit a log interval
+    if is_main and config.wandb_enabled and len(infos) > 0:
+        avg_loss = sum(info["loss"] for info in infos) / len(infos)
+        avg_lr = sum(info["learning_rate"] for info in infos) / len(infos)
+        avg_grad_norm = None
+        vals = [info["grad_norm"] for info in infos if "grad_norm" in info and info["grad_norm"] is not None]
+        if len(vals) > 0:
+            avg_grad_norm = sum(vals) / len(vals)
+        log_payload = {
+            "loss": avg_loss,
+            "learning_rate": avg_lr,
+            "step": global_step - 1,
+            "time_per_step": (time.time() - start_time) / len(infos),
+        }
+        if avg_grad_norm is not None:
+            log_payload["grad_norm"] = avg_grad_norm
+        wandb.log(log_payload, step=global_step - 1)
 
     # Finish wandb run
     if is_main and config.wandb_enabled:

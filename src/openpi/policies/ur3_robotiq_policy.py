@@ -136,6 +136,9 @@ def _prepare_image(image: np.ndarray | None, *, fallback: np.ndarray | None = No
         arr = np.transpose(arr, (1, 2, 0))
 
     if arr.dtype != np.uint8:
+        # If values look normalized to [0, 1], scale back to [0, 255] before casting.
+        if arr.max() <= 1.0:
+            arr = arr * 255.0
         arr = np.clip(arr, 0, 255).astype(np.uint8)
 
     if arr.shape[2] == 1:
