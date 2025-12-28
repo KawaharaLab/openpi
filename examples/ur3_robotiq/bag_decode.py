@@ -31,10 +31,7 @@ from rosbags.rosbag2 import Reader
 from rosbags.typesys import Stores, get_typestore
 from rosbags.typesys import get_types_from_idl, get_types_from_msg
 
-try:
-    from .config import CaptureConfig, TopicSpec, load_capture_config
-except ImportError:  # pragma: no cover
-    from data_capture_tools.config import CaptureConfig, TopicSpec, load_capture_config
+from config import CaptureConfig, TopicSpec, load_capture_config
 
 
 def _sanitize_topic(topic: str) -> str:
@@ -515,7 +512,17 @@ def cli_main() -> None:
     import argparse
 
     parser = argparse.ArgumentParser(description="Convert rosbag2 data into PNG/CSV outputs")
-    parser.add_argument("--bag", required=True, help="Path to the rosbag2 directory (metadata.yaml parent)")
+    parser.add_argument("--bag", help="Path to a single rosbag2 directory (metadata.yaml parent)")
+    parser.add_argument(
+        "--lan-root",
+        default="../data/lan",
+        help="Root directory that contains per-session folders under */bag/session_* (batch mode)",
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="If set, process every bag under --lan-root matching */bag/session_*",
+    )
     parser.add_argument(
         "--config",
         required=False,
@@ -537,20 +544,48 @@ def cli_main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     logger = logging.getLogger("bag_converter_uv")
 
-    bag_path = Path(args.bag)
-    output_dir = bag_path.resolve().parent.parent
-    config_path = Path(args.config) if args.config else output_dir / "config.yaml"
-    cfg = load_capture_config(config_path)
-    csv_config_path = Path(args.csv_config) if args.csv_config else output_dir / "csv_fields.yaml"
-    cfg.csv_config_path = csv_config_path if csv_config_path.exists() else None
+    if args.all:
+        lan_root = Path(args.lan_root).resolve()
+        bag_dirs = sorted(lan_root.glob("*/bag/session_*"))
+        if not bag_dirs:
+            logger.error("No bags found under %s", lan_root)
+            return
+        logger.info("Found %d bag(s) under %s", len(bag_dirs), lan_root)
+    else:
+        if not args.bag:
+            parser.error("--bag is required unless --all is specified")
+        bag_dirs = [Path(args.bag).resolve()]
 
-    convert_bag_to_dataset(
-        bag_path,
-        output_dir,
-        cfg,
-        logger=logger,
-        cutoff_stamp_ns=args.cutoff_ns,
-    )
+    for bag_path in bag_dirs:
+        output_dir = bag_path.parent.parent
+        done_flag = output_dir / "done.txt"
+        if done_flag.exists():
+            logger.info("Skipping %s (done.txt present)", bag_path)
+            continue
+
+        config_path = Path(args.config) if args.config else output_dir / "config.yaml"
+        cfg = load_capture_config(config_path)
+        csv_config_path = Path(args.csv_config) if args.csv_config else output_dir / "csv_fields.yaml"
+        cfg.csv_config_path = csv_config_path if csv_config_path.exists() else None
+
+        logger.info("Processing %s", bag_path)
+        try:
+            convert_bag_to_dataset(
+                bag_path,
+                output_dir,
+                cfg,
+                logger=logger,
+                cutoff_stamp_ns=args.cutoff_ns,
+            )
+        except Exception:
+            logger.exception("Failed while processing %s", bag_path)
+            continue
+
+        try:
+            done_flag.touch(exist_ok=True)
+            logger.info("Marked done: %s", done_flag)
+        except Exception:
+            logger.exception("Failed to write done.txt for %s", bag_path)
 
 
 if __name__ == "__main__":

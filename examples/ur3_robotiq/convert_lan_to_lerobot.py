@@ -1,32 +1,36 @@
 """
-Convert the recorded UR3 + Robotiq pick-and-place runs into the LeRobot format.
+Convert decoded UR3 + Robotiq LAN captures into the LeRobot format at 5 Hz.
 
-This script mirrors the other conversion utilities in this repository and consumes
-the already-decoded artifacts produced by the data capture tools:
+Input (per session):
+data/lan/<session_id>/
+    images/
+        camera_fixed_realsense2_camera_color_image_raw/<stamp>.png
+        camera_wrist_realsense2_camera_color_image_raw/<stamp>.png
+    csv/
+        force_torque_left.csv
+        force_torque_right.csv
+        joint_states.csv
+        scaled_joint_trajectory_controller_controller_state.csv
+        robotiq_2f_gripper_action_goal.csv
+        robotiq_2f_gripper_finger_distance_mm.csv
+    prompt.txt
 
-data/pick_and_place/<session_id>/
-  bag/                     # raw rosbag (not used here)
-  config.yaml              # capture configuration
-  images/
-    camera_camera_fixed_color_image_raw_compressed/<stamp>.png
-    camera_camera_wrist_color_image_raw_compressed/<stamp>.png
-  csv/
-    timeseries.csv         # aggregated topic data (joint states, actions, gripper)
-  prompt.txt               # task instruction to store as the LeRobot task
+Synchronization rule (5 Hz):
+- Find the earliest timestamp at which every required stream (both cameras and
+    all CSV topics) has produced at least one sample.
+- From that start time, step forward every 0.2 s (200 ms).
+- At each step, use the latest sample at-or-before the step for every topic
+    (carry-forward). If either camera is missing a frame for the step, skip it.
 
-Images are used as the temporal anchor (≈15 FPS). Joint states and actions are
-aligned to the nearest image timestamp within a configurable tolerance.
-
-Usage:
-uv run examples/ur3_robotiq/convert_pick_and_place_to_lerobot.py \\
-  --repo-id <your_hf_username/pick_and_place_ur3> \\
-  --data-root data/pick_and_place
-
-Notes:
-- The script prefers pre-decoded PNG/CSV artifacts. If you want direct rosbag
-  decoding instead, provide per-topic CSVs or ensure rosbag2_py + cv_bridge are
-  available and we can extend this script.
-- Gripper distance/action values are stored in meters (converted from mm).
+Outputs:
+- A LeRobot dataset with frames containing:
+    * images.cam_fixed (RGB), images.cam_wrist (RGB)
+    * state: [joint_pos(6), finger_distance_m]
+    * force_left(6)
+    * force_right(6)
+    * actions: [ref_joint_pos(6), gripper_goal]
+- Optionally push to HF Hub (disabled by default); otherwise copied to
+    <data_root>/../pick_and_place_lerobot.
 """
 
 from __future__ import annotations
@@ -34,261 +38,114 @@ from __future__ import annotations
 import bisect
 import csv
 import dataclasses
+import json
 import logging
 from pathlib import Path
 import shutil
-from typing import Generic, Sequence, TypeVar
+from typing import Iterable, Sequence
 
 import numpy as np
-from lerobot.datasets.lerobot_dataset import HF_LEROBOT_HOME
-from lerobot.datasets.lerobot_dataset import LeRobotDataset
+from lerobot.datasets.lerobot_dataset import HF_LEROBOT_HOME, LeRobotDataset
 from PIL import Image
 from tqdm import tqdm
 import tyro
 
-
-T = TypeVar("T")
-
-
-@dataclasses.dataclass(slots=True)
-class TimeSeriesIndex(Generic[T]):
-    """Lightweight time-indexed lookup with nearest-neighbor queries."""
-
-    stamps: list[int]
-    values: list[T]
-
-    @classmethod
-    def from_pairs(cls, pairs: Sequence[tuple[int, T]]) -> "TimeSeriesIndex[T]":
-        ordered = sorted(pairs, key=lambda p: p[0])
-        stamps, values = zip(*ordered) if ordered else ([], [])
-        return cls(list(stamps), list(values))
-
-    def nearest(self, stamp: int, tolerance_ns: int) -> T | None:
-        """Return the closest sample within the tolerance, otherwise None."""
-        if not self.stamps:
-            return None
-
-        idx = bisect.bisect_left(self.stamps, stamp)
-        candidates: list[tuple[int, T]] = []
-        for j in (idx - 1, idx):
-            if 0 <= j < len(self.stamps):
-                delta = abs(self.stamps[j] - stamp)
-                if delta <= tolerance_ns:
-                    candidates.append((delta, self.values[j]))
-
-        if not candidates:
-            return None
-        candidates.sort(key=lambda item: item[0])
-        return candidates[0][1]
-
-
-@dataclasses.dataclass(slots=True)
-class SessionData:
-    session_dir: Path
-    prompt: str
-    wrist_frames: list[tuple[int, Path]]
-    fixed_frames: list[tuple[int, Path]]
-    joint_index: TimeSeriesIndex[np.ndarray]
-    action_index: TimeSeriesIndex[np.ndarray]
-    gripper_action_index: TimeSeriesIndex[float]
-    finger_index: TimeSeriesIndex[float]
+GRIPPER_ACTION_OPEN = 0.140 # m
+GRIPPER_ACTION_CLOSE = 0.002 # m
 
 
 @dataclasses.dataclass
 class ConvertConfig:
-    data_root: Path = Path("data/pick_and_place")
-    repo_id: str = "uzumi-bi/pick_and_place_ur3"
-    fps: float | None = None
-    image_tolerance_ns: int = int(1e8)  # 100 ms camera-to-camera pairing window
-    state_tolerance_ns: int = int(5e7)  # 50 ms camera-to-state pairing window
-    action_tolerance_ns: int = int(5e7)  # 50 ms camera-to-action pairing window
+    data_root: Path = Path("../data/lan_test")
+    repo_id: str = "uzumi-bi/lan_ur3"
+    fps: float = 5.0  # fixed 5 Hz resampling
+    action_horizon: int = 50  # number of future actions to include
+    action_hz: float = 20.0  # action sampling rate (Hz) for horizon
     push_to_hub: bool = False
-    local_output_dirname: str = "pick_and_place_lerobot"
-
-
-def _maybe_float(value: str) -> float | None:
-    if value is None or value == "":
-        return None
-    try:
-        return float(value)
-    except ValueError:
-        return None
-
-
-def _read_array(row: dict[str, str], prefix: str, count: int) -> list[float] | None:
-    values: list[float] = []
-    for i in range(count):
-        val = _maybe_float(row[f"{prefix}[{i}]"])
-        if val is None:
-            return None
-        values.append(val)
-    return values
+    local_output_dirname: str = "lan_ur3_lerobot"
 
 
 def _reorder_joints_to_feature_order(values: np.ndarray) -> np.ndarray:
-    """Reorder joint arrays from ROS order to the feature_names order."""
+    """
+    Reorder joint arrays from ROS order to the feature_names order.
+    state only; not for actions.
+    """
     if values.shape[-1] != 6:
         raise ValueError(f"Expected 6 joint values, got shape {values.shape}")
     # See joint_reorder_idx in _create_dataset for the definition.
     return values[..., (5, 0, 1, 2, 3, 4)]
+def _parse_array(text: str, expected_len: int | None = None) -> np.ndarray:
+    values = np.asarray(json.loads(text), dtype=np.float32)
+    if expected_len is not None and values.shape[0] != expected_len:
+        raise ValueError(f"Expected array length {expected_len}, got {values.shape[0]}")
+    return values
 
 
-def _load_timeseries(csv_path: Path) -> tuple[TimeSeriesIndex[np.ndarray], TimeSeriesIndex[np.ndarray], TimeSeriesIndex[float], TimeSeriesIndex[float]]:
-    joint_samples: list[tuple[int, np.ndarray]] = []
-    action_samples: list[tuple[int, np.ndarray]] = []
-    gripper_goal_samples: list[tuple[int, float]] = []
-    finger_samples: list[tuple[int, float]] = []
-
-    with csv_path.open("r", newline="") as handle:
-        reader = csv.DictReader(handle)
-        for row in reader:
-            stamp = int(row["stamp_ns"])
-
-            positions = _read_array(row, "joint_states.position", 6)
-            if positions is not None:
-                reordered = _reorder_joints_to_feature_order(np.asarray(positions, dtype=np.float32))
-                joint_samples.append((stamp, reordered))
-
-            actions = _read_array(row, "forward_position_controller_commands.data", 6)
-            if actions is not None:
-                reordered = _reorder_joints_to_feature_order(np.asarray(actions, dtype=np.float32))
-                action_samples.append((stamp, reordered))
-
-            gripper_goal = _maybe_float(row.get("robotiq_2f_gripper_action_goal.data[0]", ""))
-            if gripper_goal is not None:
-                # Convert mm -> meters to match the finger distance scale used for state.
-                gripper_goal_samples.append((stamp, float(gripper_goal) / 1000.0))
-
-            finger_distance_mm = _maybe_float(row.get("robotiq_2f_gripper_finger_distance_mm.data", ""))
-            if finger_distance_mm is not None:
-                finger_samples.append((stamp, float(finger_distance_mm) / 1000.0))
-
-    return (
-        TimeSeriesIndex.from_pairs(joint_samples),
-        TimeSeriesIndex.from_pairs(action_samples),
-        TimeSeriesIndex.from_pairs(gripper_goal_samples),
-        TimeSeriesIndex.from_pairs(finger_samples),
-    )
-
-
-def _load_camera_frames(images_dir: Path) -> list[tuple[int, Path]]:
-    frames = []
-    for path in images_dir.glob("*.png"):
-        try:
-            stamp = int(path.stem)
-        except ValueError:
-            continue
-        frames.append((stamp, path))
-    return sorted(frames, key=lambda p: p[0])
-
-
-def _pair_camera_frames(
-    wrist_frames: Sequence[tuple[int, Path]],
-    fixed_frames: Sequence[tuple[int, Path]],
-    tolerance_ns: int,
-) -> list[tuple[int, Path, Path]]:
-    """Greedily pair wrist images with the nearest fixed images."""
-    pairs: list[tuple[int, Path, Path]] = []
-    fixed_idx = 0
-
-    for wrist_stamp, wrist_path in wrist_frames:
-        while (
-            fixed_idx + 1 < len(fixed_frames)
-            and abs(fixed_frames[fixed_idx + 1][0] - wrist_stamp) <= abs(fixed_frames[fixed_idx][0] - wrist_stamp)
-        ):
-            fixed_idx += 1
-
-        if fixed_idx >= len(fixed_frames):
-            break
-
-        fixed_stamp, fixed_path = fixed_frames[fixed_idx]
-        if abs(fixed_stamp - wrist_stamp) <= tolerance_ns:
-            pairs.append((wrist_stamp, wrist_path, fixed_path))
-
-    return pairs
-
-
-def _load_session(session_dir: Path, cfg: ConvertConfig) -> SessionData:
-    prompt_path = session_dir / "prompt.txt"
-    prompt = prompt_path.read_text().strip()
-
-    wrist_dir = session_dir / "images" / "camera_camera_wrist_color_image_raw_compressed"
-    fixed_dir = session_dir / "images" / "camera_camera_fixed_color_image_raw_compressed"
-    wrist_frames = _load_camera_frames(wrist_dir)
-    fixed_frames = _load_camera_frames(fixed_dir)
-
-    if not wrist_frames:
-        raise FileNotFoundError(f"No wrist frames found under {wrist_dir}")
-    if not fixed_frames:
-        raise FileNotFoundError(f"No fixed frames found under {fixed_dir}")
-
-    csv_path = session_dir / "csv" / "timeseries.csv"
-    joint_idx, action_idx, gripper_goal_idx, finger_idx = _load_timeseries(csv_path)
-
-    return SessionData(
-        session_dir=session_dir,
-        prompt=prompt,
-        wrist_frames=wrist_frames,
-        fixed_frames=fixed_frames,
-        joint_index=joint_idx,
-        action_index=action_idx,
-        gripper_action_index=gripper_goal_idx,
-        finger_index=finger_idx,
-    )
-
-
-def _compute_fps_from_frames(frames: Sequence[tuple[int, Path]]) -> float:
-    stamps = [stamp for stamp, _ in frames]
-    if len(stamps) < 2:
-        return 15.0
-    deltas = np.diff(stamps)
-    median_ns = float(np.median(deltas))
-    return 1e9 / median_ns if median_ns > 0 else 15.0
-
-
-def _create_dataset(repo_id: str, fps: float) -> tuple[LeRobotDataset, Path]:
-    feature_names = [
+def _feature_name_lists():
+    joints = [
         "shoulder_pan_joint",
         "shoulder_lift_joint",
         "elbow_joint",
         "wrist_1_joint",
         "wrist_2_joint",
         "wrist_3_joint",
-        "robotiq_finger_distance_m",
+    ]
+    state_names: list[str] = [
+        *[f"joint_pos.{n}" for n in joints],
+        "finger_distance_m",
     ]
 
-    # Raw ROS 2 joint_states order in the logged CSV is:
-    # shoulder_lift, elbow, wrist_1, wrist_2, wrist_3, shoulder_pan
-    # but we want shoulder_pan first. This index map reorders from the raw order
-    # into the target feature_names order above.
-    joint_reorder_idx = (5, 0, 1, 2, 3, 4)
+    action_names: list[str] = [
+        *[f"ref_joint_pos.{n}" for n in joints],
+        "gripper_goal_m",
+    ]
+    return state_names, action_names
+
+
+def _create_dataset(
+    repo_id: str,
+    fps: float,
+    img_shapes: dict[str, tuple[int, int, int]],
+    state_names: list[str],
+    action_names: list[str],
+    action_horizon: int,
+) -> tuple[LeRobotDataset, Path]:
+    output_path = HF_LEROBOT_HOME / repo_id
+    if output_path.exists():
+        shutil.rmtree(output_path)
 
     features = {
-        "images.cam_high": {
+        "images.cam_fixed": {
             "dtype": "image",
-            "shape": (360, 640, 3),
+            "shape": img_shapes["fixed"],
             "names": ["height", "width", "channel"],
         },
-        "images.cam_left_wrist": {
+        "images.cam_wrist": {
             "dtype": "image",
-            "shape": (360, 640, 3),
+            "shape": img_shapes["wrist"],
             "names": ["height", "width", "channel"],
         },
         "state": {
             "dtype": "float32",
-            "shape": (len(feature_names),),
-            "names": [feature_names],
+            "shape": (len(state_names),),
+            "names": [state_names],
+        },
+        "left_ft": {
+            "dtype": "float32",
+            "shape": (6,),
+            "names": ["fx", "fy", "fz", "tx", "ty", "tz"],
+        },
+        "right_ft": {
+            "dtype": "float32",
+            "shape": (6,),
+            "names": ["fx", "fy", "fz", "tx", "ty", "tz"],
         },
         "actions": {
             "dtype": "float32",
-            "shape": (len(feature_names),),
-            "names": [feature_names],
+            "shape": (action_horizon, len(action_names)),
+            "names": ["horizon", "component"],
         },
     }
-
-    output_path = HF_LEROBOT_HOME / repo_id
-    if output_path.exists():
-        shutil.rmtree(output_path)
 
     dataset = LeRobotDataset.create(
         repo_id=repo_id,
@@ -305,80 +162,284 @@ def _load_rgb(path: Path) -> np.ndarray:
     return np.asarray(Image.open(path).convert("RGB"), dtype=np.uint8)
 
 
-def _convert_session(session: SessionData, dataset: LeRobotDataset, cfg: ConvertConfig) -> dict[str, int]:
-    camera_pairs = _pair_camera_frames(session.wrist_frames, session.fixed_frames, cfg.image_tolerance_ns)
-    if not camera_pairs:
-        raise RuntimeError(f"Failed to pair cameras for session {session.session_dir}")
+def _load_frames(images_dir: Path) -> list[tuple[int, Path]]:
+    frames: list[tuple[int, Path]] = []
+    for path in images_dir.glob("*.png"):
+        try:
+            stamp = int(path.stem)
+        except ValueError:
+            continue
+        frames.append((stamp, path))
+    return sorted(frames, key=lambda p: p[0])
 
-    stats = {"frames_written": 0, "frames_skipped_missing_state": 0, "frames_skipped_missing_action": 0}
-    last_finger = 0.0
 
-    for stamp, wrist_path, fixed_path in tqdm(camera_pairs, desc=f"Session {session.session_dir.name}"):
-        joint_state = session.joint_index.nearest(stamp, cfg.state_tolerance_ns)
-        if joint_state is None:
-            stats["frames_skipped_missing_state"] += 1
+def _load_csv_pairs(path: Path, builder) -> list[tuple[int, object]]:
+    pairs: list[tuple[int, object]] = []
+    with path.open("r", newline="") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            stamp = int(row["stamp_ns"])
+            pairs.append((stamp, builder(row)))
+    return pairs
+
+
+def _first_last(stamps: list[int]) -> tuple[int, int]:
+    return stamps[0], stamps[-1]
+
+
+def _find_image_dir(session_dir: Path, candidates: Sequence[str]) -> Path:
+    for name in candidates:
+        candidate = session_dir / "images" / name
+        if candidate.exists():
+            return candidate
+    raise FileNotFoundError(f"No image directory found under {session_dir}/images (tried {candidates})")
+
+
+def _prepare_streams(session_dir: Path):
+    # Required CSVs
+    csv_root = session_dir / "csv"
+
+    left_force = _load_csv_pairs(
+        csv_root / "force_torque_left.csv",
+        lambda row: np.array(
+            [
+                float(row["force_left_x"]),
+                float(row["force_left_y"]),
+                float(row["force_left_z"]),
+                float(row["torque_left_x"]),
+                float(row["torque_left_y"]),
+                float(row["torque_left_z"]),
+            ],
+            dtype=np.float32,
+        ),
+    )
+
+    right_force = _load_csv_pairs(
+        csv_root / "force_torque_right.csv",
+        lambda row: np.array(
+            [
+                float(row["force_right_x"]),
+                float(row["force_right_y"]),
+                float(row["force_right_z"]),
+                float(row["torque_right_x"]),
+                float(row["torque_right_y"]),
+                float(row["torque_right_z"]),
+            ],
+            dtype=np.float32,
+        ),
+    )
+
+    joint_states = _load_csv_pairs(
+        csv_root / "joint_states.csv",
+        lambda row: {
+            "pos": _reorder_joints_to_feature_order(_parse_array(row["joint_positions"], expected_len=6)), # reorder states only, do not include velocities
+        },
+    )
+
+    controller_state = _load_csv_pairs(
+        csv_root / "scaled_joint_trajectory_controller_controller_state.csv",
+        lambda row: {
+            "ref_pos": _parse_array(row["reference_joint_positions"], expected_len=6), # DO NOT reorder actions, do not include velocities
+        },
+    )
+
+    gripper_goal = _load_csv_pairs(
+        csv_root / "robotiq_2f_gripper_action_goal.csv",
+        lambda row: (float(json.loads(row["gripper_goal"])[0]) - GRIPPER_ACTION_CLOSE) / (GRIPPER_ACTION_OPEN - GRIPPER_ACTION_CLOSE),
+    )
+
+    finger_distance = _load_csv_pairs(
+        csv_root / "robotiq_2f_gripper_finger_distance_mm.csv",
+        lambda row: (float(row["gripper_finger_distance_mm"]) / 1000.0 - GRIPPER_ACTION_CLOSE) / (GRIPPER_ACTION_OPEN - GRIPPER_ACTION_CLOSE),
+    )
+
+    return {
+        "left_force": left_force,
+        "right_force": right_force,
+        "joint_states": joint_states,
+        "controller_state": controller_state,
+        "gripper_goal": gripper_goal,
+        "finger_distance": finger_distance,
+    }
+
+
+def _determine_time_range(streams, cameras):
+    first_stamps = []
+    last_stamps = []
+    for _, data in streams.items():
+        stamps = [s for s, _ in data]
+        first, last = _first_last(stamps)
+        first_stamps.append(first)
+        last_stamps.append(last)
+
+    for name, frames in cameras.items():
+        stamps = [s for s, _ in frames]
+        first, last = _first_last(stamps)
+        first_stamps.append(first)
+        last_stamps.append(last)
+
+    start = max(first_stamps)
+    end = min(last_stamps)
+    return start, end
+
+
+def _convert_session(session_dir: Path, dataset: LeRobotDataset, cfg: ConvertConfig):
+    prompt = (session_dir / "prompt.txt").read_text().strip()
+
+    camera_fixed_dir = _find_image_dir(
+        session_dir,
+        [
+            "camera_fixed_realsense2_camera_color_image_raw",
+            "camera_camera_fixed_color_image_raw_compressed",
+        ],
+    )
+    camera_wrist_dir = _find_image_dir(
+        session_dir,
+        [
+            "camera_wrist_realsense2_camera_color_image_raw",
+            "camera_camera_wrist_color_image_raw_compressed",
+        ],
+    )
+
+    camera_fixed = _load_frames(camera_fixed_dir)
+    camera_wrist = _load_frames(camera_wrist_dir)
+    if not camera_fixed or not camera_wrist:
+        raise FileNotFoundError(f"Missing camera frames in {session_dir}")
+
+    streams = _prepare_streams(session_dir)
+    start, end = _determine_time_range(streams, {"fixed": camera_fixed, "wrist": camera_wrist})
+
+    step_ns = int(1e9 / cfg.fps)
+    action_step_ns = int(1e9 / cfg.action_hz)
+    horizon_span = action_step_ns * cfg.action_horizon
+    effective_end = end - horizon_span
+    if effective_end <= start:
+        logging.warning("Skipping %s: insufficient future horizon", session_dir)
+        return
+    time_grid = range(start, effective_end + 1, step_ns)
+
+    # Pointers and last-values for carry-forward.
+    idx = {k: 0 for k in streams.keys()}
+    last = {k: None for k in streams.keys()}
+    cam_idx = {"fixed": 0, "wrist": 0}
+    cam_last = {"fixed": None, "wrist": None}
+
+    frames_written = 0
+    skipped = 0
+
+    ctrl_stamps = [s for s, _ in streams["controller_state"]]
+    ctrl_vals = [v["ref_pos"] for _, v in streams["controller_state"]]
+    goal_stamps = [s for s, _ in streams["gripper_goal"]]
+    goal_vals = [v for _, v in streams["gripper_goal"]]
+
+    for t in tqdm(time_grid, desc=f"Session {session_dir.name}"):
+        for key, data in streams.items():
+            while idx[key] < len(data) and data[idx[key]][0] <= t:
+                last[key] = data[idx[key]][1]
+                idx[key] += 1
+
+        for key, data in {"fixed": camera_fixed, "wrist": camera_wrist}.items():
+            while cam_idx[key] < len(data) and data[cam_idx[key]][0] <= t:
+                cam_last[key] = data[cam_idx[key]][1]
+                cam_idx[key] += 1
+
+        if any(v is None for v in last.values()) or any(v is None for v in cam_last.values()):
+            skipped += 1
             continue
 
-        finger = session.finger_index.nearest(stamp, cfg.state_tolerance_ns)
-        if finger is not None:
-            last_finger = finger
-        state = np.concatenate([joint_state, np.array([last_finger], dtype=np.float32)], dtype=np.float32)
+        joint = last["joint_states"]
 
-        action = session.action_index.nearest(stamp, cfg.action_tolerance_ns)
-        gripper_cmd = session.gripper_action_index.nearest(stamp, cfg.action_tolerance_ns)
-        if gripper_cmd is None:
-            gripper_cmd = last_finger
+        state_vec = np.concatenate(
+            [
+                joint["pos"],
+                np.array([last["finger_distance"]], dtype=np.float32),
+            ],
+            dtype=np.float32,
+        )
 
-        if action is None:
-            stats["frames_skipped_missing_action"] += 1
+        # Build future action horizon as deltas from current state.
+        action_seq = np.zeros((cfg.action_horizon, 7), dtype=np.float32)
+        missing_action = False
+        for i in range(cfg.action_horizon):
+            target_t = t + (i + 1) * action_step_ns
+            idx_ctrl = bisect.bisect_right(ctrl_stamps, target_t) - 1
+            idx_goal = bisect.bisect_right(goal_stamps, target_t) - 1
+            if idx_ctrl < 0 or idx_goal < 0:
+                missing_action = True
+                break
+            ref_pos = ctrl_vals[idx_ctrl]
+            goal = goal_vals[idx_goal]
+            # deltas: desired minus current state except for gripper
+            action_seq[i, :6] = ref_pos - joint["pos"]
+            action_seq[i, 6] = goal
+
+        if missing_action:
+            skipped += 1
             continue
-
-        actions = np.concatenate([action, np.array([gripper_cmd], dtype=np.float32)], dtype=np.float32)
 
         frame = {
-            "images.cam_high": _load_rgb(fixed_path),
-            "images.cam_left_wrist": _load_rgb(wrist_path),
-            "state": state,
-            "actions": actions,
+            "images.cam_fixed": _load_rgb(cam_last["fixed"]),
+            "images.cam_wrist": _load_rgb(cam_last["wrist"]),
+            "state": state_vec,
+            "left_ft": last["left_force"],
+            "right_ft": last["right_force"],
+            "actions": action_seq,
         }
-        dataset.add_frame(frame, task=session.prompt)
-        stats["frames_written"] += 1
+
+        dataset.add_frame(frame, task=prompt)
+        frames_written += 1
 
     dataset.save_episode()
-    return stats
+    logging.info(
+        f"{session_dir.name}: wrote {frames_written} frames (skipped {skipped} steps with missing data)"
+    )
 
 
 def main(cfg: ConvertConfig):
     logging.basicConfig(level=logging.INFO, format="%(message)s")
-    data_root = cfg.data_root
-    sessions = sorted([p for p in data_root.iterdir() if p.is_dir()])
+    sessions = sorted([p for p in cfg.data_root.iterdir() if p.is_dir()])
     if not sessions:
-        raise FileNotFoundError(f"No sessions found under {data_root}")
+        raise FileNotFoundError(f"No sessions found under {cfg.data_root}")
 
-    first_session = _load_session(sessions[0], cfg)
-    fps = cfg.fps or _compute_fps_from_frames(first_session.wrist_frames)
-    logging.info(f"Using FPS={fps:.2f}")
-    dataset, dataset_path = _create_dataset(cfg.repo_id, fps=fps)
+    state_names, action_names = _feature_name_lists()
 
-    # Process the first session (already loaded) then the rest.
-    all_sessions = [first_session] + [_load_session(session_dir, cfg) for session_dir in sessions[1:]]
-    for session in all_sessions:
-        stats = _convert_session(session, dataset, cfg)
-        logging.info(
-            f"{session.session_dir.name}: wrote {stats['frames_written']} frames "
-            f"(missing_state={stats['frames_skipped_missing_state']}, "
-            f"missing_action={stats['frames_skipped_missing_action']})"
-        )
+    # Determine image shapes from the first session (first frame of each camera).
+    first_session = sessions[0]
+    fixed_dir = _find_image_dir(
+        first_session,
+        [
+            "camera_fixed_realsense2_camera_color_image_raw",
+            "camera_camera_fixed_color_image_raw_compressed",
+        ],
+    )
+    wrist_dir = _find_image_dir(
+        first_session,
+        [
+            "camera_wrist_realsense2_camera_color_image_raw",
+            "camera_camera_wrist_color_image_raw_compressed",
+        ],
+    )
+    fixed_img = _load_rgb(_load_frames(fixed_dir)[0][1])
+    wrist_img = _load_rgb(_load_frames(wrist_dir)[0][1])
+    img_shapes = {
+        "fixed": fixed_img.shape,
+        "wrist": wrist_img.shape,
+    }
+
+    dataset, dataset_path = _create_dataset(cfg.repo_id, fps=cfg.fps, img_shapes=img_shapes, state_names=state_names, action_names=action_names, action_horizon=cfg.action_horizon)
+
+    for session_dir in sessions:
+        _convert_session(session_dir, dataset, cfg)
 
     if cfg.push_to_hub:
         dataset.push_to_hub(
-            tags=["ur3", "robotiq", "pick_and_place"],
+            tags=["VLA", "ur3", "robotiq", "force-torque", "insertion"],
             private=False,
             push_videos=True,
             license="apache-2.0",
         )
     else:
-        target_root = data_root.resolve().parent / cfg.local_output_dirname
+        target_root = cfg.data_root.resolve().parent / cfg.local_output_dirname
         if target_root.exists():
             shutil.rmtree(target_root)
         shutil.copytree(dataset_path, target_root)

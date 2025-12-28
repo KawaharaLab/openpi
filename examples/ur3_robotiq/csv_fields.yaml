@@ -1,0 +1,37 @@
+topics:
+  /force_torque/left:
+    fields:
+      stamp_ns: stamp_ns
+      force_torque_left.wrench.force.x: force_left_x
+      force_torque_left.wrench.force.y: force_left_y
+      force_torque_left.wrench.force.z: force_left_z
+      force_torque_left.wrench.torque.x: torque_left_x
+      force_torque_left.wrench.torque.y: torque_left_y
+      force_torque_left.wrench.torque.z: torque_left_z
+  /force_torque/right:
+    fields:
+      stamp_ns: stamp_ns
+      force_torque_right.wrench.force.x: force_right_x
+      force_torque_right.wrench.force.y: force_right_y
+      force_torque_right.wrench.force.z: force_right_z
+      force_torque_right.wrench.torque.x: torque_right_x
+      force_torque_right.wrench.torque.y: torque_right_y
+      force_torque_right.wrench.torque.z: torque_right_z
+  /scaled_joint_trajectory_controller/controller_state:
+    fields:
+      stamp_ns: stamp_ns
+      scaled_joint_trajectory_controller_controller_state.reference.positions: reference_joint_positions
+      scaled_joint_trajectory_controller_controller_state.reference.velocities: reference_joint_velocities
+  /joint_states:
+    fields:
+      stamp_ns: stamp_ns
+      joint_states.position: joint_positions
+      joint_states.velocity: joint_velocities
+  /robotiq_2f_gripper_action_goal:
+    fields:
+      stamp_ns: stamp_ns
+      robotiq_2f_gripper_action_goal.data: gripper_goal
+  /robotiq_2f_gripper/finger_distance_mm:
+    fields:
+      stamp_ns: stamp_ns
+      robotiq_2f_gripper_finger_distance_mm.data: gripper_finger_distance_mm
