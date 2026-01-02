@@ -124,8 +124,9 @@ def set_seed(seed: int, local_rank: int):
 
 def build_datasets(config: _config.TrainConfig):
     # Use the unified data loader with PyTorch framework
-    data_loader = _data.create_data_loader(config, framework="pytorch", shuffle=True)
-    return data_loader, data_loader.data_config()
+    data_loader = _data.create_data_loader(config, framework="pytorch", shuffle=True, split="train")
+    val_loader = _data.create_data_loader(config, framework="pytorch", shuffle=False, split="val")
+    return data_loader, val_loader, data_loader.data_config()
 
 
 def get_model_state_dict(model):
@@ -370,7 +371,8 @@ def train_loop(config: _config.TrainConfig):
     )
 
     # Pass the original batch size to data loader - it will handle DDP splitting internally
-    loader, data_config = build_datasets(config)
+    loader, val_loader, data_config = build_datasets(config)
+    val_iter = iter(val_loader)
 
     # Log sample images to wandb on first batch
     if is_main and config.wandb_enabled and not resuming:
@@ -479,10 +481,43 @@ def train_loop(config: _config.TrainConfig):
         logging.info(f"Loading weights from: {config.pytorch_weight_path}")
 
         model_path = os.path.join(config.pytorch_weight_path, "model.safetensors")
-        safetensors.torch.load_model(
-            (model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model), model_path
-        )
-        logging.info(f"Loaded PyTorch weights from {config.pytorch_weight_path}")
+
+        if getattr(config, "reinit_action_expert", False):
+            # Load checkpoint selectively: drop action/state projection weights when their shapes
+            # don't match the current model (e.g., switching action_dim).
+            state_dict = safetensors.torch.load_file(model_path)
+            drop_keys = {
+                "action_in_proj.weight",
+                "action_in_proj.bias",
+                "action_out_proj.weight",
+                "action_out_proj.bias",
+                "state_proj.weight",
+                "state_proj.bias",
+            }
+            # Also handle DistributedDataParallel saved checkpoints prefixed with "module.".
+            for key in list(state_dict.keys()):
+                base_key = key.removeprefix("module.")
+                if base_key in drop_keys:
+                    state_dict.pop(key)
+
+            missing, unexpected = (model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model).load_state_dict(state_dict, strict=False)
+            logging.info(
+                "Loaded PyTorch weights with action expert reinit; missing=%s unexpected=%s", missing, unexpected
+            )
+        else:
+            safetensors.torch.load_model(
+                (model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model), model_path
+            )
+            logging.info(f"Loaded PyTorch weights from {config.pytorch_weight_path}")
+
+    # Compute optional freeze window; apply after we know the resume step.
+    freeze_steps_total = 0
+    if getattr(config, "reinit_action_expert", False):
+        fraction = getattr(config, "freeze_pretrained_fraction", 0.0) or 0.0
+        if fraction > 0:
+            freeze_steps_total = max(1, int(config.num_train_steps * fraction))
+            # Never set a freeze window longer than the planned training steps.
+            freeze_steps_total = min(freeze_steps_total, max(1, config.num_train_steps//2))
 
     # Optimizer + learning rate schedule from config
     warmup_steps = config.lr_schedule.warmup_steps
@@ -504,6 +539,36 @@ def train_loop(config: _config.TrainConfig):
     if resuming:
         global_step = load_checkpoint(model, optim, config.checkpoint_dir, device)
         logging.info(f"Resumed training from step {global_step}")
+
+    # Apply optional freeze after knowing starting step (handles resume correctly).
+    freeze_steps_remaining = 0
+    if freeze_steps_total > 0:
+        base_model = model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model
+        action_keys = {"action_in_proj", "action_out_proj", "state_proj"}
+
+        if global_step >= freeze_steps_total:
+            # If resuming past the freeze window, leave everything trainable.
+            for _, param in base_model.named_parameters():
+                param.requires_grad = True
+            logging.info(
+                f"Skip freeze: resuming at step {global_step} which is past freeze window ({freeze_steps_total} steps)"
+            )
+        else:
+            freeze_steps_remaining = freeze_steps_total - global_step
+            frozen_params = 0
+            trainable_params = 0
+            for name, param in base_model.named_parameters():
+                if name.split(".")[0] in action_keys:
+                    param.requires_grad = True
+                    trainable_params += 1
+                else:
+                    param.requires_grad = False
+                    frozen_params += 1
+            logging.info(
+                f"Freezing pretrained backbone for first {freeze_steps_total} steps (remaining from step {global_step}: {freeze_steps_remaining}); trainable params={trainable_params}, frozen params={frozen_params}"
+            )
+    else:
+        logging.info("No backbone freeze scheduled before training start")
 
     def lr_schedule(step: int):
         if step < warmup_steps:
@@ -542,6 +607,31 @@ def train_loop(config: _config.TrainConfig):
         else None
     )
 
+    def run_validation_step(step: int):
+        nonlocal val_iter
+        if val_loader is None:
+            return None
+        try:
+            observation, actions = next(val_iter)
+        except StopIteration:
+            val_iter = iter(val_loader)
+            observation, actions = next(val_iter)
+
+        observation = jax.tree.map(lambda x: x.to(device), observation)
+        actions = actions.to(torch.float32).to(device)
+        model.eval()
+        with torch.no_grad():
+            losses = model(observation, actions)
+            if isinstance(losses, list | tuple):
+                losses = torch.stack(losses)
+            elif not isinstance(losses, torch.Tensor):
+                losses = torch.tensor(losses, device=device, dtype=torch.float32)
+            val_loss = losses.mean().item()
+        model.train()
+        if is_main and config.wandb_enabled:
+            wandb.log({"val_loss": val_loss}, step=step)
+        return val_loss
+
     while global_step < config.num_train_steps:
         # Set epoch for distributed training
         if use_ddp and hasattr(loader, "set_epoch"):
@@ -551,6 +641,16 @@ def train_loop(config: _config.TrainConfig):
             # Check if we've reached the target number of steps
             if global_step >= config.num_train_steps:
                 break
+
+            # Unfreeze backbone as soon as the threshold is reached, even mid-epoch.
+            if freeze_steps_remaining > 0 and global_step >= freeze_steps_total:
+                base_model = model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model
+                for _, param in base_model.named_parameters():
+                    param.requires_grad = True
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                logging.info(f"Unfroze pretrained backbone at step {global_step}")
+                freeze_steps_remaining = 0  # disable further checks
 
             # The unified data loader returns (observation, actions) tuple
             observation = jax.tree.map(lambda x: x.to(device), observation)  # noqa: PLW2901
@@ -633,6 +733,9 @@ def train_loop(config: _config.TrainConfig):
                         log_payload["grad_norm"] = avg_grad_norm
                     wandb.log(log_payload, step=global_step)
 
+                # Run a quick val step and log
+                run_validation_step(global_step)
+
                 start_time = time.time()
                 infos = []  # Reset stats collection
 
@@ -650,6 +753,16 @@ def train_loop(config: _config.TrainConfig):
     # Close progress bar
     if pbar is not None:
         pbar.close()
+
+    # Safety: ensure backbone not left frozen if training ended early.
+    if freeze_steps_total > 0 and freeze_steps_remaining > 0:
+        base_model = model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model
+        for _, param in base_model.named_parameters():
+            param.requires_grad = True
+        logging.warning(
+            "Training finished before unfreeze threshold; backbone has been unfrozen now for any further usage." 
+            f"(freeze_steps_total={freeze_steps_total}, reached_step={global_step})"
+        )
 
     # Log any remaining metrics that didn't hit a log interval
     if is_main and config.wandb_enabled and len(infos) > 0:
@@ -679,6 +792,7 @@ def train_loop(config: _config.TrainConfig):
 def main():
     init_logging()
     config = _config.cli()
+    print(f"torch info: {torch.__version__}, cuda available: {torch.cuda.is_available()}, cuda devices: {torch.cuda.device_count()}")
     train_loop(config)
 
 

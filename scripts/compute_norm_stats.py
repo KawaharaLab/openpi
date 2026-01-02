@@ -4,6 +4,7 @@ This script is used to compute the normalization statistics for a given config. 
 will compute the mean and standard deviation of the data in the dataset and save it
 to the config assets directory.
 """
+import pathlib
 
 import numpy as np
 import tqdm
@@ -29,8 +30,8 @@ def create_torch_dataloader(
     num_workers: int,
     max_frames: int | None = None,
 ) -> tuple[_data_loader.Dataset, int]:
-    if data_config.repo_id is None:
-        raise ValueError("Data config must have a repo_id")
+    if data_config.repo_id is None and data_config.local_repo_path is None:
+        raise ValueError("Data config must have a repo_id or local_repo_path")
     dataset = _data_loader.create_torch_dataset(data_config, action_horizon, model_config)
     dataset = _data_loader.TransformedDataset(
         dataset,
@@ -90,13 +91,17 @@ def main(config_name: str, max_frames: int | None = None):
     config = _config.get_config(config_name)
     data_config = config.data.create(config.assets_dirs, config.model)
 
+    # If the dataset already contains pre-computed action horizons (action_sequence_keys empty),
+    # avoid constructing additional action chunks by forcing a horizon of 1 for norm stats.
+    effective_action_horizon = 1 if len(data_config.action_sequence_keys) == 0 else config.model.action_horizon
+
     if data_config.rlds_data_dir is not None:
         data_loader, num_batches = create_rlds_dataloader(
-            data_config, config.model.action_horizon, config.batch_size, max_frames
+            data_config, effective_action_horizon, config.batch_size, max_frames
         )
     else:
         data_loader, num_batches = create_torch_dataloader(
-            data_config, config.model.action_horizon, config.batch_size, config.model, config.num_workers, max_frames
+            data_config, effective_action_horizon, config.batch_size, config.model, config.num_workers, max_frames
         )
 
     keys = ["state", "actions"]
@@ -108,7 +113,15 @@ def main(config_name: str, max_frames: int | None = None):
 
     norm_stats = {key: stats.get_statistics() for key, stats in stats.items()}
 
-    output_path = config.assets_dirs / data_config.repo_id
+    asset_name = (
+        data_config.asset_id
+        or data_config.repo_id
+        or (pathlib.Path(data_config.local_repo_path).name if data_config.local_repo_path else None)
+    )
+    if asset_name is None:
+        raise ValueError("Could not determine asset directory name (repo_id/asset_id/local_repo_path missing).")
+
+    output_path = config.assets_dirs / asset_name
     print(f"Writing stats to: {output_path}")
     normalize.save(output_path, norm_stats)
 

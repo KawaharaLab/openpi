@@ -56,7 +56,7 @@ GRIPPER_ACTION_CLOSE = 0.002 # m
 
 @dataclasses.dataclass
 class ConvertConfig:
-    data_root: Path = Path("../data/lan_test")
+    data_root: Path = Path("../data/lan")
     repo_id: str = "uzumi-bi/lan_ur3"
     fps: float = 5.0  # fixed 5 Hz resampling
     action_horizon: int = 50  # number of future actions to include
@@ -158,8 +158,12 @@ def _create_dataset(
     return dataset, output_path
 
 
-def _load_rgb(path: Path) -> np.ndarray:
-    return np.asarray(Image.open(path).convert("RGB"), dtype=np.uint8)
+def _load_rgb(path: Path) -> np.ndarray | None:
+    try:
+        return np.asarray(Image.open(path).convert("RGB"), dtype=np.uint8)
+    except OSError as exc:  # truncated or unreadable image
+        logging.warning("Skipping unreadable image: %s (%s)", path, exc)
+        return None
 
 
 def _load_frames(images_dir: Path) -> list[tuple[int, Path]]:
@@ -245,12 +249,16 @@ def _prepare_streams(session_dir: Path):
 
     gripper_goal = _load_csv_pairs(
         csv_root / "robotiq_2f_gripper_action_goal.csv",
-        lambda row: (float(json.loads(row["gripper_goal"])[0]) - GRIPPER_ACTION_CLOSE) / (GRIPPER_ACTION_OPEN - GRIPPER_ACTION_CLOSE),
+        # Normalize so fully open -> 0, fully closed -> 1.
+        lambda row: (GRIPPER_ACTION_OPEN - float(json.loads(row["gripper_goal"])[0]))
+        / (GRIPPER_ACTION_OPEN - GRIPPER_ACTION_CLOSE),
     )
 
     finger_distance = _load_csv_pairs(
         csv_root / "robotiq_2f_gripper_finger_distance_mm.csv",
-        lambda row: (float(row["gripper_finger_distance_mm"]) / 1000.0 - GRIPPER_ACTION_CLOSE) / (GRIPPER_ACTION_OPEN - GRIPPER_ACTION_CLOSE),
+        # Normalize so fully open -> 0, fully closed -> 1.
+        lambda row: (GRIPPER_ACTION_OPEN - float(row["gripper_finger_distance_mm"]) / 1000.0)
+        / (GRIPPER_ACTION_OPEN - GRIPPER_ACTION_CLOSE),
     )
 
     return {
@@ -377,9 +385,15 @@ def _convert_session(session_dir: Path, dataset: LeRobotDataset, cfg: ConvertCon
             skipped += 1
             continue
 
+        fixed_img = _load_rgb(cam_last["fixed"])
+        wrist_img = _load_rgb(cam_last["wrist"])
+        if fixed_img is None or wrist_img is None:
+            skipped += 1
+            continue
+
         frame = {
-            "images.cam_fixed": _load_rgb(cam_last["fixed"]),
-            "images.cam_wrist": _load_rgb(cam_last["wrist"]),
+            "images.cam_fixed": fixed_img,
+            "images.cam_wrist": wrist_img,
             "state": state_vec,
             "left_ft": last["left_force"],
             "right_ft": last["right_force"],
@@ -429,6 +443,9 @@ def main(cfg: ConvertConfig):
     dataset, dataset_path = _create_dataset(cfg.repo_id, fps=cfg.fps, img_shapes=img_shapes, state_names=state_names, action_names=action_names, action_horizon=cfg.action_horizon)
 
     for session_dir in sessions:
+        if not (session_dir / "done.txt").exists():
+            logging.warning("Skipping %s: missing done.txt (decode likely failed)", session_dir.name)
+            continue
         _convert_session(session_dir, dataset, cfg)
 
     if cfg.push_to_hub:

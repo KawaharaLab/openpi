@@ -2,8 +2,10 @@ from collections.abc import Iterator, Sequence
 import logging
 import multiprocessing
 import os
+import pathlib
 import typing
 from typing import Literal, Protocol, SupportsIndex, TypeVar
+import packaging.version
 
 import jax
 import jax.numpy as jnp
@@ -131,15 +133,29 @@ def create_torch_dataset(
     data_config: _config.DataConfig, action_horizon: int, model_config: _model.BaseModelConfig
 ) -> Dataset:
     """Create a dataset for training."""
-    repo_id = data_config.repo_id
+    if data_config.local_repo_path:
+        local_path = pathlib.Path(data_config.local_repo_path)
+        repo_id = local_path.name
+        root = local_path
+        # Force offline/version checks to rely on local files, not Hugging Face.
+        os.environ.setdefault("HF_HUB_OFFLINE", "1")
+        import lerobot.datasets.utils as lr_utils
+
+        lr_utils.get_repo_versions = lambda _repo_id: [packaging.version.parse("2.1")]
+        lr_utils.get_safe_version = lambda _repo_id, version: str(version)
+    else:
+        repo_id = data_config.repo_id
+        root = None
+
     if repo_id is None:
-        raise ValueError("Repo ID is not set. Cannot create dataset.")
+        raise ValueError("Dataset path is not set. Specify repo_id or local_repo_path.")
     if repo_id == "fake":
         return FakeDataset(model_config, num_samples=1024)
 
-    dataset_meta = lerobot_dataset.LeRobotDatasetMetadata(repo_id)
+    dataset_meta = lerobot_dataset.LeRobotDatasetMetadata(repo_id, root)
     dataset = lerobot_dataset.LeRobotDataset(
-        data_config.repo_id,
+        repo_id,
+        root=root,
         delta_timestamps={
             key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
         },
@@ -228,6 +244,7 @@ def create_data_loader(
     num_batches: int | None = None,
     skip_norm_stats: bool = False,
     framework: Literal["jax", "pytorch"] = "jax",
+    split: Literal["train", "val", "all"] = "train",
 ) -> DataLoader[tuple[_model.Observation, _model.Actions]]:
     """Create a data loader for training.
 
@@ -252,8 +269,9 @@ def create_data_loader(
             num_batches=num_batches,
             skip_norm_stats=skip_norm_stats,
             framework=framework,
+            split=split,
         )
-    return create_torch_data_loader(
+    data_loader = create_torch_data_loader(
         data_config,
         model_config=config.model,
         action_horizon=config.model.action_horizon,
@@ -265,7 +283,9 @@ def create_data_loader(
         seed=config.seed,
         skip_norm_stats=skip_norm_stats,
         framework=framework,
+        split=split,
     )
+    return data_loader
 
 
 def create_torch_data_loader(
@@ -281,6 +301,7 @@ def create_torch_data_loader(
     num_workers: int = 0,
     seed: int = 0,
     framework: str = "jax",
+    split: Literal["train", "val", "all"] = "train",
 ) -> DataLoader[tuple[_model.Observation, _model.Actions]]:
     """Create a data loader for training.
 
@@ -300,6 +321,17 @@ def create_torch_data_loader(
         seed: The seed to use for shuffling the data.
     """
     dataset = create_torch_dataset(data_config, action_horizon, model_config)
+    # Optional train/val split
+    if split in ("train", "val") and data_config.train_fraction is not None:
+        if not 0.0 < data_config.train_fraction < 1.0:
+            raise ValueError("train_fraction must be in (0,1) when splitting is enabled")
+        train_len = max(1, int(len(dataset) * data_config.train_fraction))
+        val_len = max(1, len(dataset) - train_len)
+        if train_len + val_len > len(dataset):
+            val_len = len(dataset) - train_len
+        generator = torch.Generator().manual_seed(data_config.split_seed)
+        train_ds, val_ds = torch.utils.data.random_split(dataset, [train_len, val_len], generator=generator)
+        dataset = train_ds if split == "train" else val_ds
     dataset = transform_dataset(dataset, data_config, skip_norm_stats=skip_norm_stats)
 
     # Use TorchDataLoader for both frameworks
@@ -347,6 +379,7 @@ def create_rlds_data_loader(
     shuffle: bool = False,
     num_batches: int | None = None,
     framework: str = "jax",
+    split: Literal["train", "val", "all"] = "train",
 ) -> DataLoader[tuple[_model.Observation, _model.Actions]]:
     """Create an RLDS data loader for training.
 
@@ -366,6 +399,8 @@ def create_rlds_data_loader(
     """
     if framework == "pytorch":
         raise NotImplementedError("PyTorch RLDS data loader is not supported yet")
+    if split != "train" and split != "all":
+        raise NotImplementedError("RLDS loader does not support train/val splitting")
     dataset = create_rlds_dataset(data_config, action_horizon, batch_size, shuffle=shuffle)
     dataset = transform_iterable_dataset(dataset, data_config, skip_norm_stats=skip_norm_stats, is_batched=True)
 

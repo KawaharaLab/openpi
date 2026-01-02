@@ -82,3 +82,18 @@ def test_with_real_dataset():
 
     for _, actions in batches:
         assert actions.shape == (config.batch_size, config.model.action_horizon, config.model.action_dim)
+
+
+def test_train_val_split_with_fake_dataset():
+    config = _config.get_config("debug")
+    config = dataclasses.replace(config, batch_size=4)
+
+    train_loader = _data_loader.create_data_loader(config, skip_norm_stats=True, num_batches=1, split="train")
+    val_loader = _data_loader.create_data_loader(config, skip_norm_stats=True, num_batches=1, split="val")
+
+    train_batch = next(iter(train_loader))
+    val_batch = next(iter(val_loader))
+
+    # Verify batch sizes are respected
+    for _, actions in [train_batch, val_batch]:
+        assert actions.shape == (config.batch_size, config.model.action_horizon, config.model.action_dim)
