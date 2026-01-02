@@ -1,2 +1,0 @@
-Converting PI0 checkpoint from ../.cache/openpi/openpi-assets/checkpoints/pi0_base to ../.cache/openpi/openpi-assets/checkpoints/pi0_base_pytorch
-Model config: Pi0Config(action_dim=32, action_horizon=50, max_token_len=48, dtype='bfloat16', paligemma_variant='gemma_2b', action_expert_variant='gemma_300m', pi05=False, discrete_state_input=False)
