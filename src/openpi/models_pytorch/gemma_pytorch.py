@@ -1,3 +1,4 @@
+import logging
 from typing import Literal
 
 import pytest
@@ -7,6 +8,8 @@ from transformers import GemmaForCausalLM
 from transformers import PaliGemmaForConditionalGeneration
 from transformers.models.auto import CONFIG_MAPPING
 from transformers.models.gemma import modeling_gemma
+
+from openpi.models_pytorch import lora_pytorch
 
 
 class PaliGemmaWithExpertModel(nn.Module):
@@ -58,7 +61,74 @@ class PaliGemmaWithExpertModel(nn.Module):
         self.gemma_expert = GemmaForCausalLM(config=action_expert_config_hf)
         self.gemma_expert.model.embed_tokens = None
 
+        # Optionally wrap attention/MLP linears with LoRA if configs specify it.
+        self._maybe_apply_lora(self.paligemma, vlm_config)
+        self._maybe_apply_lora(self.gemma_expert, action_expert_config)
+
         self.to_bfloat16_for_selected_params(precision)
+
+    @staticmethod
+    def _to_torch_lora_cfg(cfg) -> lora_pytorch.LoRAConfig | None:
+        if cfg is None:
+            return None
+        return lora_pytorch.LoRAConfig(rank=cfg.rank, alpha=cfg.alpha, rslora=cfg.rslora, init_std=0.01)
+
+    def _maybe_apply_lora(self, model, config) -> None:
+        # config may carry lora_configs dict (from JAX side). If empty, skip.
+        lora_attn = self._to_torch_lora_cfg(config.lora_configs.get("attn")) if hasattr(config, "lora_configs") else None
+        lora_ffn = self._to_torch_lora_cfg(config.lora_configs.get("ffn")) if hasattr(config, "lora_configs") else None
+        if lora_attn is None and lora_ffn is None:
+            logging.info("[LoRA] no lora_configs found on config; skipping LoRA application")
+            return
+
+        def _wrap_block(block):
+            attn_wrapped = ffn_wrapped = 0
+            if lora_attn:
+                for name in ("q_proj", "k_proj", "v_proj", "o_proj"):
+                    if hasattr(block.self_attn, name):
+                        lin = getattr(block.self_attn, name)
+                        setattr(block.self_attn, name, lora_pytorch.apply_lora_to_linear(lin, lora_attn))
+                        attn_wrapped += 1
+            if lora_ffn and hasattr(block, "mlp"):
+                for name in ("gate_proj", "up_proj", "down_proj"):
+                    if hasattr(block.mlp, name):
+                        lin = getattr(block.mlp, name)
+                        setattr(block.mlp, name, lora_pytorch.apply_lora_to_linear(lin, lora_ffn))
+                        ffn_wrapped += 1
+            return attn_wrapped, ffn_wrapped
+
+        # Paligemma: prefer language_model.model.layers, fallback to language_model.layers
+        attn_total = ffn_total = 0
+        pal_layers = None
+        if hasattr(model, "language_model"):
+            lm = model.language_model
+            if hasattr(lm, "model") and hasattr(lm.model, "layers"):
+                pal_layers = lm.model.layers
+            elif hasattr(lm, "layers"):
+                pal_layers = lm.layers
+        if pal_layers is not None:
+            for layer in pal_layers:
+                a, f = _wrap_block(layer)
+                attn_total += a
+                ffn_total += f
+
+        # Gemma expert: prefer model.layers
+        gem_layers = None
+        if hasattr(model, "model") and hasattr(model.model, "layers"):
+            gem_layers = model.model.layers
+        if gem_layers is not None:
+            for layer in gem_layers:
+                a, f = _wrap_block(layer)
+                attn_total += a
+                ffn_total += f
+
+        logging.info(
+            "[LoRA] applied attn_wrapped=%s ffn_wrapped=%s (attn_cfg=%s ffn_cfg=%s)",
+            attn_total,
+            ffn_total,
+            lora_attn is not None,
+            lora_ffn is not None,
+        )
 
     def to_bfloat16_for_selected_params(self, precision: Literal["bfloat16", "float32"] = "bfloat16"):
         if precision == "bfloat16":

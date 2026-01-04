@@ -3,6 +3,7 @@ assets/
 checkpoints/
 wandb/
 data/
+run.sh.*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -1,5 +1,5 @@
 #!/bin/bash
-#PBS -q regular-g
+#PBS -q short-g
 #PBS -l select=1
 #PBS -W group_list=gr41
 
@@ -16,9 +16,11 @@ export WANDB_API_KEY="c85b817c62f441243d232b381088358e72fa2b19"
 source .venv/bin/activate
 # python scripts/train_pytorch.py pi0_ur3_robotiq --exp-name full_trial --reinit-action-expert
 # python scripts/train_pytorch.py pi0_ur3_robotiq --exp-name full_fix
-python ./scripts/train_pytorch.py pi0_ur3_robotiq_cartesian_pos --exp-name full_trial
-# python examples/ur3_robotiq/convert_lan_to_lerobot.py
+# python ./scripts/train_pytorch.py pi0_ur3_robotiq_cartesian_pos --exp-name full_trial
+# python ./scripts/train_pytorch.py pi0_ur3_robotiq_cartesian_pos_ft_lora --exp-name trial --reinit-action-expert
+python ./scripts/train_pytorch.py pi0_ur3_robotiq_ft_lora --exp-name full-lora
 # python examples/ur3_robotiq/convert_lan_to_lerobot_cartesian.py
-# python ./scripts/compute_norm_stats.py --config-name pi0_ur3_robotiq_cartesian
-# python ./scripts/compute_norm_stats.py --config-name pi0_ur3_robotiq
+# python examples/ur3_robotiq/convert_lan_to_lerobot.py
+# python ./scripts/compute_norm_stats.py --config-name pi0_ur3_robotiq_cartesian_pos_ft_lora
+# python ./scripts/compute_norm_stats.py --config-name pi0_ur3_robotiq_ft_angles
 exit 0

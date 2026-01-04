@@ -47,14 +47,26 @@ def make_ur3_example() -> dict:
         image = Image.open(image_path).convert("RGB")
         return np.asarray(image, dtype=np.uint8)
 
+    def load_force_torque(column: str) -> np.ndarray:
+        rel_path = row[column]
+        ft_path = (_EXAMPLE_ROOT / rel_path).resolve()
+        if not ft_path.is_file():
+            raise FileNotFoundError(f"Example force/torque data not found: {ft_path}")
+        return np.loadtxt(ft_path, delimiter=",", dtype=np.float32)
     images = {
         "cam_high": load_image("fixed_image"),
         "cam_left_wrist": load_image("wrist_image"),
     }
 
+    force_torques = {
+        "left": load_force_torque("left_ft"),
+        "right": load_force_torque("right_ft"),
+    }
+
     return {
         "state": state,
         "images": images,
+        "force_torques": force_torques,
         "prompt": "Pick up the blue cube.",
     }
 
@@ -80,6 +92,8 @@ class Ur3RobotiqInputs(transforms.DataTransformFn):
         base_img = _prepare_image(images.get(self.IMAGE_KEYS["base"]))
         wrist_img = _prepare_image(images.get(self.IMAGE_KEYS["wrist"]), fallback=base_img)
 
+        left_ft = _prepare_ft(data.get("force_torques", {}).get("left"))
+        right_ft = _prepare_ft(data.get("force_torques", {}).get("right"))
         # Pi0 reserves two wrist slots. We populate the left slot with the real wrist camera
         # and keep the right slot as an all-zero image with its mask cleared so the model
         # ignores it.
@@ -95,11 +109,15 @@ class Ur3RobotiqInputs(transforms.DataTransformFn):
             "left_wrist_0_rgb": np.True_,
             "right_wrist_0_rgb": np.False_,
         }
-
+        ft_dict = {
+            "left_ft": left_ft,
+            "right_ft": right_ft,
+        }
         output = {
             "state": state,
             "image": image_dict,
             "image_mask": image_mask,
+            "force_torques": ft_dict,
         }
 
         if "actions" in data:
@@ -148,3 +166,57 @@ def _prepare_image(image: np.ndarray | None, *, fallback: np.ndarray | None = No
         arr = np.repeat(arr, 3, axis=2)
 
     return arr
+
+def _prepare_ft(ft: np.ndarray | None) -> np.ndarray:
+    """Normalize force/torque to shape (6, 80) and forward/backward fill missing values.
+
+    Expected input: 6 channels over 80 timesteps. If values are missing (None/NaN),
+    fill from the nearest available sample: first forward-fill, then backward-fill
+    to cover any leading gaps. If all samples are missing for a channel, zeros are used.
+    """
+
+    def _fill_nan_1d(x: np.ndarray) -> np.ndarray:
+        out = x.copy()
+        # Forward fill
+        last = np.nan
+        for i in range(out.shape[0]):
+            if np.isfinite(out[i]):
+                last = out[i]
+            elif np.isfinite(last):
+                out[i] = last
+        # Backward fill for leading gaps
+        last = np.nan
+        for i in range(out.shape[0] - 1, -1, -1):
+            if np.isfinite(out[i]):
+                last = out[i]
+            elif np.isfinite(last):
+                out[i] = last
+        return out
+
+    horizon = getattr(_model, "FT_HORIZON", None)
+    horizon = 300 if horizon is None else int(horizon)
+
+    if ft is None:
+        return np.zeros((6, horizon), dtype=np.float32)
+
+    arr = np.asarray(ft, dtype=np.float32)
+
+    # Accept (horizon, 6) and transpose to (6, horizon)
+    if arr.shape == (horizon, 6):
+        arr = arr.T
+    # Accept (6,) by broadcasting across time (unlikely but more forgiving)
+    if arr.shape == (6,):
+        arr = np.repeat(arr[:, None], horizon, axis=1)
+
+    if arr.shape != (6, horizon):
+        raise ValueError(f"Expected force/torque array of shape (6, {horizon}), got {arr.shape}")
+
+    filled = np.empty_like(arr)
+    for c in range(6):
+        channel = arr[c]
+        if not np.isfinite(channel).any():
+            filled[c] = 0.0
+            continue
+        filled[c] = _fill_nan_1d(channel)
+
+    return filled

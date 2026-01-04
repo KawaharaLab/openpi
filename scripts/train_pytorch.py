@@ -31,6 +31,7 @@ import platform
 import pickle
 import shutil
 import time
+import pathlib
 
 import jax
 import numpy as np
@@ -43,6 +44,7 @@ import wandb
 
 import openpi.models.pi0_config
 import openpi.models_pytorch.pi0_pytorch
+from openpi.models_pytorch import lora_pytorch
 import openpi.shared.normalize as _normalize
 import openpi.training.config as _config
 import openpi.training.data_loader as _data
@@ -70,25 +72,47 @@ def init_logging():
         logger.handlers[0].setFormatter(formatter)
 
 
-def init_wandb(config: _config.TrainConfig, *, resuming: bool, enabled: bool = True):
-    """Initialize wandb logging."""
+def init_wandb(
+    config: _config.TrainConfig,
+    *,
+    resuming: bool,
+    run_dir: pathlib.Path | None,
+    run_name: str | None,
+    base_dir: pathlib.Path,
+    overwrite: bool,
+    enabled: bool = True,
+):
+    """Initialize wandb logging and return the resolved run directory and name."""
     if not enabled:
         wandb.init(mode="disabled")
-        return
-
-    ckpt_dir = config.checkpoint_dir
-    if not ckpt_dir.exists():
-        raise FileNotFoundError(f"Checkpoint directory {ckpt_dir} does not exist.")
+        resolved_name = run_name or "disabled"
+        resolved_dir = run_dir or (base_dir / resolved_name)
+        return resolved_dir, resolved_name
 
     if resuming:
-        run_id = (ckpt_dir / "wandb_id.txt").read_text().strip()
+        assert run_dir is not None, "run_dir must be set when resuming"
+        if not run_dir.exists():
+            raise FileNotFoundError(f"Checkpoint directory {run_dir} does not exist.")
+        run_id = (run_dir / "wandb_id.txt").read_text().strip()
         wandb.init(id=run_id, resume="must", project=config.name)
+        resolved_name = run_name or wandb.run.name
+        return run_dir, resolved_name
     else:
         wandb.init(
             config=dataclasses.asdict(config),
             project=config.name,
         )
-        (ckpt_dir / "wandb_id.txt").write_text(wandb.run.id)
+        resolved_name = run_name or wandb.run.name
+        resolved_dir = run_dir or (base_dir / resolved_name)
+        if resolved_dir.exists():
+            if overwrite:
+                shutil.rmtree(resolved_dir)
+            else:
+                raise FileExistsError(f"Checkpoint directory {resolved_dir} already exists; use --overwrite to replace.")
+        resolved_dir.mkdir(parents=True, exist_ok=True)
+        (resolved_dir / "wandb_run_name.txt").write_text(resolved_name)
+        (resolved_dir / "wandb_id.txt").write_text(wandb.run.id)
+        return resolved_dir, resolved_name
 
 
 def setup_ddp():
@@ -147,7 +171,7 @@ def get_model_parameters(model):
     )
 
 
-def save_checkpoint(model, optimizer, global_step, config, is_main, data_config):
+def save_checkpoint(model, optimizer, global_step, checkpoint_dir: pathlib.Path, config, is_main, data_config):
     """Save a checkpoint with model state, optimizer state, and metadata."""
     if not is_main:
         return
@@ -155,8 +179,8 @@ def save_checkpoint(model, optimizer, global_step, config, is_main, data_config)
     # Only save if it's time to save or if it's the final step
     if (global_step % config.save_interval == 0 and global_step > 0) or global_step == config.num_train_steps - 1:
         # Create temporary directory for atomic checkpoint saving
-        final_ckpt_dir = config.checkpoint_dir / f"{global_step}"
-        tmp_ckpt_dir = config.checkpoint_dir / f"tmp_{global_step}"
+        final_ckpt_dir = checkpoint_dir / f"{global_step}"
+        tmp_ckpt_dir = checkpoint_dir / f"tmp_{global_step}"
 
         # Remove any existing temp directory and create new one
         if tmp_ckpt_dir.exists():
@@ -326,40 +350,53 @@ def train_loop(config: _config.TrainConfig):
     is_main = (not use_ddp) or (dist.get_rank() == 0)
     set_seed(config.seed, local_rank)
 
-    # Initialize checkpoint directory and wandb
+    # Resolve checkpoint root and run directory (use wandb.run.name to avoid accidental overwrite).
+    base_checkpoint_root = pathlib.Path(config.checkpoint_base_dir) / config.name
+    run_checkpoint_dir: pathlib.Path | None = None
+    run_name: str | None = None
     resuming = False
+
     if config.resume:
-        # Find checkpoint directory based on experiment name
-        exp_checkpoint_dir = config.checkpoint_dir
-        if exp_checkpoint_dir.exists():
-            # Use validation to find the latest working checkpoint
-            latest_step = get_latest_checkpoint_step(exp_checkpoint_dir)
+        if not config.exp_name:
+            raise ValueError("--exp_name must be set when resuming to identify the run directory.")
+        run_name = config.exp_name
+        run_checkpoint_dir = base_checkpoint_root / run_name
+        if run_checkpoint_dir.exists():
+            latest_step = get_latest_checkpoint_step(run_checkpoint_dir)
             if latest_step is not None:
                 resuming = True
                 logging.info(
-                    f"Resuming from experiment checkpoint directory: {exp_checkpoint_dir} at step {latest_step}"
+                    f"Resuming from checkpoint directory: {run_checkpoint_dir} at step {latest_step}"
                 )
             else:
-                raise FileNotFoundError(f"No valid checkpoints found in {exp_checkpoint_dir} for resume")
+                raise FileNotFoundError(f"No valid checkpoints found in {run_checkpoint_dir} for resume")
         else:
-            raise FileNotFoundError(f"Experiment checkpoint directory {exp_checkpoint_dir} does not exist for resume")
-    elif config.overwrite and config.checkpoint_dir.exists():
-        shutil.rmtree(config.checkpoint_dir)
-        logging.info(f"Overwriting checkpoint directory: {config.checkpoint_dir}")
+            raise FileNotFoundError(f"Checkpoint directory {run_checkpoint_dir} does not exist for resume")
 
-    # Create checkpoint directory with experiment name
-    if not resuming:
-        # For new runs, create experiment-specific checkpoint directory
-        exp_checkpoint_dir = config.checkpoint_dir
-        exp_checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        logging.info(f"Created experiment checkpoint directory: {exp_checkpoint_dir}")
-    else:
-        # For resume, checkpoint_dir is already set to the experiment directory
-        logging.info(f"Using existing experiment checkpoint directory: {config.checkpoint_dir}")
-
-    # Initialize wandb (only on main process)
+    # Initialize wandb on the main rank to obtain run_name; broadcast to others.
     if is_main:
-        init_wandb(config, resuming=resuming, enabled=config.wandb_enabled)
+        base_checkpoint_root.mkdir(parents=True, exist_ok=True)
+        run_checkpoint_dir, run_name = init_wandb(
+            config,
+            resuming=resuming,
+            run_dir=run_checkpoint_dir,
+            run_name=run_name,
+            base_dir=base_checkpoint_root,
+            overwrite=config.overwrite,
+            enabled=config.wandb_enabled,
+        )
+
+    if use_ddp:
+        # Share run_name from rank 0
+        name_list = [run_name]
+        dist.broadcast_object_list(name_list, src=0)
+        run_name = name_list[0]
+        run_checkpoint_dir = base_checkpoint_root / run_name
+
+    # For single-process or after broadcast, ensure checkpoint dir exists (main already created when logging enabled).
+    if not resuming and run_checkpoint_dir is not None and not run_checkpoint_dir.exists():
+        run_checkpoint_dir.mkdir(parents=True, exist_ok=True)
+    logging.info(f"Using checkpoint directory: {run_checkpoint_dir}")
 
     # Build data loader using the unified data loader
     # Calculate effective batch size per GPU for DDP
@@ -446,6 +483,23 @@ def train_loop(config: _config.TrainConfig):
 
     model = openpi.models_pytorch.pi0_pytorch.PI0Pytorch(model_cfg).to(device)
 
+    # Determine if LoRA variants are requested (paligemma and/or action expert).
+    pal_lora_enabled = "lora" in getattr(model_cfg, "paligemma_variant", "")
+    expert_lora_enabled = "lora" in getattr(model_cfg, "action_expert_variant", "")
+    lora_enabled = pal_lora_enabled or expert_lora_enabled
+
+    def _log_lora_modules(stage: str):
+        base_model = model
+        if isinstance(base_model, torch.nn.parallel.DistributedDataParallel):
+            base_model = base_model.module
+        lora_modules = [(n, m) for n, m in base_model.named_modules() if isinstance(m, lora_pytorch.LoRALinear)]
+        logging.info("[%s] LoRA modules detected: %s", stage, len(lora_modules))
+        if lora_modules:
+            sample = ", ".join(n for n, _ in lora_modules[:5])
+            logging.info("[%s] First LoRA module names: %s%s", stage, sample, " ..." if len(lora_modules) > 5 else "")
+        elif lora_enabled:
+            logging.warning("[%s] LoRA expected from config but no LoRALinear modules were found.", stage)
+
     if hasattr(model, "gradient_checkpointing_enable"):
         enable_gradient_checkpointing = True
         model.gradient_checkpointing_enable()
@@ -457,6 +511,10 @@ def train_loop(config: _config.TrainConfig):
     # Log initial memory usage after model creation
     if is_main and torch.cuda.is_available():
         log_memory_usage(device, 0, "after_model_creation")
+
+    # Log LoRA presence right after model construction
+    if is_main:
+        _log_lora_modules("after_model_build")
 
     # Enable memory optimizations for large-scale training
     if world_size >= 8:
@@ -494,10 +552,11 @@ def train_loop(config: _config.TrainConfig):
                 "state_proj.weight",
                 "state_proj.bias",
             }
-            # Also handle DistributedDataParallel saved checkpoints prefixed with "module.".
+            # Drop any force/torque encoder params so they start from scratch too.
+            ft_prefix = "force_torque_axis_cnns"
             for key in list(state_dict.keys()):
                 base_key = key.removeprefix("module.")
-                if base_key in drop_keys:
+                if base_key in drop_keys or base_key.startswith(ft_prefix):
                     state_dict.pop(key)
 
             missing, unexpected = (model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model).load_state_dict(state_dict, strict=False)
@@ -505,19 +564,80 @@ def train_loop(config: _config.TrainConfig):
                 "Loaded PyTorch weights with action expert reinit; missing=%s unexpected=%s", missing, unexpected
             )
         else:
-            safetensors.torch.load_model(
-                (model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model), model_path
+            # Allow missing LoRA parameters when base checkpoints do not contain them.
+            state_dict = safetensors.torch.load_file(model_path)
+            missing, unexpected = (model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model).load_state_dict(state_dict, strict=not lora_enabled)
+            logging.info(
+                "Loaded PyTorch weights from %s (missing=%s unexpected=%s, lora_enabled=%s)",
+                config.pytorch_weight_path,
+                missing,
+                unexpected,
+                lora_enabled,
             )
-            logging.info(f"Loaded PyTorch weights from {config.pytorch_weight_path}")
 
     # Compute optional freeze window; apply after we know the resume step.
     freeze_steps_total = 0
-    if getattr(config, "reinit_action_expert", False):
+    explicit_steps = getattr(config, "freeze_pretrained_steps", 0) or 0
+    if explicit_steps > 0:
+        freeze_steps_total = min(explicit_steps, max(1, config.num_train_steps))
+    elif getattr(config, "reinit_action_expert", False):
+        # Preserve the legacy fraction behavior only when explicitly reinitializing the expert.
         fraction = getattr(config, "freeze_pretrained_fraction", 0.0) or 0.0
         if fraction > 0:
             freeze_steps_total = max(1, int(config.num_train_steps * fraction))
-            # Never set a freeze window longer than the planned training steps.
-            freeze_steps_total = min(freeze_steps_total, max(1, config.num_train_steps//2))
+            freeze_steps_total = min(freeze_steps_total, max(1, config.num_train_steps // 2))
+
+    def _log_trainable_mask(stage: str):
+        base_model = model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model
+        trainable = []
+        frozen = []
+        for name, param in base_model.named_parameters():
+            (trainable if param.requires_grad else frozen).append(name)
+        logging.info("[%s] trainable (%s): %s", stage, len(trainable), trainable)
+        logging.info("[%s] frozen (%s): %s", stage, len(frozen), frozen)
+
+    def _apply_trainable_mask(freeze_active: bool, *, stage: str | None = None):
+        base_model = model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model
+        action_roots = {"action_in_proj", "action_out_proj", "state_proj", "force_torque_axis_cnns"}
+
+        # Identify LoRA param names even if the raw name does not contain "lora_".
+        lora_param_names: set[str] = set()
+        for mod_name, mod in base_model.named_modules():
+            if isinstance(mod, lora_pytorch.LoRALinear):
+                for pname, _ in mod.named_parameters(recurse=False):
+                    full = f"{mod_name}.{pname}" if mod_name else pname
+                    lora_param_names.add(full)
+
+        trainable_params = frozen_params = 0
+        for name, param in base_model.named_parameters():
+            # Always train action/FT heads
+            root = name.split(".")[0]
+            if root in action_roots:
+                train = True
+            elif expert_lora_enabled and ".gemma_expert." in name:
+                # When action expert uses LoRA, keep base frozen and train only LoRA params (after freeze window).
+                train = (name in lora_param_names) and (not freeze_active)
+            elif ".gemma_expert." in name:
+                # Non-LoRA action expert: train immediately if reinitialized, otherwise after the freeze window.
+                train = getattr(config, "reinit_action_expert", False) or (not freeze_active)
+            elif lora_enabled and name in lora_param_names:
+                # Keep LoRA frozen during initial freeze window, unfreeze afterwards
+                train = not freeze_active
+            else:
+                # paligemma backbone (including any non-LoRA paligemma weights) stays frozen
+                train = False
+            param.requires_grad = train
+            if train:
+                trainable_params += 1
+            else:
+                frozen_params += 1
+        logging.info(
+            "Applied trainable mask (freeze_active=%s): trainable=%s frozen=%s",
+            freeze_active,
+            trainable_params,
+            frozen_params,
+        )
+        _log_trainable_mask(stage or ("freeze_active_true" if freeze_active else "freeze_active_false"))
 
     # Optimizer + learning rate schedule from config
     warmup_steps = config.lr_schedule.warmup_steps
@@ -537,38 +657,31 @@ def train_loop(config: _config.TrainConfig):
     # Load checkpoint if resuming
     global_step = 0
     if resuming:
-        global_step = load_checkpoint(model, optim, config.checkpoint_dir, device)
+        global_step = load_checkpoint(model, optim, run_checkpoint_dir, device)
         logging.info(f"Resumed training from step {global_step}")
 
     # Apply optional freeze after knowing starting step (handles resume correctly).
     freeze_steps_remaining = 0
     if freeze_steps_total > 0:
-        base_model = model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model
-        action_keys = {"action_in_proj", "action_out_proj", "state_proj"}
-
         if global_step >= freeze_steps_total:
-            # If resuming past the freeze window, leave everything trainable.
-            for _, param in base_model.named_parameters():
-                param.requires_grad = True
+            _apply_trainable_mask(freeze_active=False, stage="initial_after_resume_past_freeze")
             logging.info(
                 f"Skip freeze: resuming at step {global_step} which is past freeze window ({freeze_steps_total} steps)"
             )
         else:
             freeze_steps_remaining = freeze_steps_total - global_step
-            frozen_params = 0
-            trainable_params = 0
-            for name, param in base_model.named_parameters():
-                if name.split(".")[0] in action_keys:
-                    param.requires_grad = True
-                    trainable_params += 1
-                else:
-                    param.requires_grad = False
-                    frozen_params += 1
+            _apply_trainable_mask(freeze_active=True, stage="initial_in_freeze_window")
             logging.info(
-                f"Freezing pretrained backbone for first {freeze_steps_total} steps (remaining from step {global_step}: {freeze_steps_remaining}); trainable params={trainable_params}, frozen params={frozen_params}"
+                f"Freezing pretrained weights for first {freeze_steps_total} steps (remaining from step {global_step}: {freeze_steps_remaining}); only scratch heads (action/FT, reinitialized expert) stay trainable"
             )
     else:
-        logging.info("No backbone freeze scheduled before training start")
+        _apply_trainable_mask(freeze_active=False, stage="initial_no_freeze_window")
+        logging.info(
+            "No backbone freeze window; paligemma base stays frozen, action/FT/gemma_expert train, LoRA unfrozen."
+        )
+
+    if is_main:
+        _log_lora_modules("after_mask_application")
 
     def lr_schedule(step: int):
         if step < warmup_steps:
@@ -642,14 +755,14 @@ def train_loop(config: _config.TrainConfig):
             if global_step >= config.num_train_steps:
                 break
 
-            # Unfreeze backbone as soon as the threshold is reached, even mid-epoch.
+            # Unfreeze LoRA after the freeze window; paligemma base stays frozen, action/FT/gemma_expert remain trainable.
             if freeze_steps_remaining > 0 and global_step >= freeze_steps_total:
-                base_model = model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model
-                for _, param in base_model.named_parameters():
-                    param.requires_grad = True
+                _apply_trainable_mask(freeze_active=False, stage="unfreeze_exit_freeze_window")
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
-                logging.info(f"Unfroze pretrained backbone at step {global_step}")
+                logging.info(
+                    f"Exited freeze window at step {global_step}; LoRA and non-reinitialized action expert params are now trainable, paligemma base still frozen"
+                )
                 freeze_steps_remaining = 0  # disable further checks
 
             # The unified data loader returns (observation, actions) tuple
@@ -741,7 +854,7 @@ def train_loop(config: _config.TrainConfig):
 
             global_step += 1
             # Save checkpoint using the new mechanism
-            save_checkpoint(model, optim, global_step, config, is_main, data_config)
+            save_checkpoint(model, optim, global_step, run_checkpoint_dir, config, is_main, data_config)
 
             # Update progress bar
             if pbar is not None:

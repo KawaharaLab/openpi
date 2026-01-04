@@ -259,11 +259,16 @@ def create_data_loader(
     data_config = config.data.create(config.assets_dirs, config.model)
     logging.info(f"data_config: {data_config}")
 
+    # Allow validation to run with a fixed batch size independent of training batch size.
+    batch_size = config.batch_size
+    if split == "val" and getattr(config, "val_batch_size", None) is not None:
+        batch_size = config.val_batch_size
+
     if data_config.rlds_data_dir is not None:
         return create_rlds_data_loader(
             data_config,
             action_horizon=config.model.action_horizon,
-            batch_size=config.batch_size,
+            batch_size=batch_size,
             sharding=sharding,
             shuffle=shuffle,
             num_batches=num_batches,
@@ -275,7 +280,7 @@ def create_data_loader(
         data_config,
         model_config=config.model,
         action_horizon=config.model.action_horizon,
-        batch_size=config.batch_size,
+        batch_size=batch_size,
         sharding=sharding,
         shuffle=shuffle,
         num_batches=num_batches,

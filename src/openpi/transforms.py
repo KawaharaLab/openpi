@@ -135,13 +135,15 @@ class Normalize(DataTransformFn):
         )
 
     def _normalize(self, x, stats: NormStats):
-        mean, std = stats.mean[..., : x.shape[-1]], stats.std[..., : x.shape[-1]]
+        mean = _align_stats_to_data(x, stats.mean, pad_value=0.0)
+        std = _align_stats_to_data(x, stats.std, pad_value=1.0)
         return (x - mean) / (std + 1e-6)
 
     def _normalize_quantile(self, x, stats: NormStats):
         assert stats.q01 is not None
         assert stats.q99 is not None
-        q01, q99 = stats.q01[..., : x.shape[-1]], stats.q99[..., : x.shape[-1]]
+        q01 = _align_stats_to_data(x, stats.q01, pad_value=0.0)
+        q99 = _align_stats_to_data(x, stats.q99, pad_value=0.0)
         return (x - q01) / (q99 - q01 + 1e-6) * 2.0 - 1.0
 
 
@@ -168,16 +170,15 @@ class Unnormalize(DataTransformFn):
         )
 
     def _unnormalize(self, x, stats: NormStats):
-        mean = pad_to_dim(stats.mean, x.shape[-1], axis=-1, value=0.0)
-        std = pad_to_dim(stats.std, x.shape[-1], axis=-1, value=1.0)
+        mean = _align_stats_to_data(x, stats.mean, pad_value=0.0)
+        std = _align_stats_to_data(x, stats.std, pad_value=1.0)
         return x * (std + 1e-6) + mean
 
     def _unnormalize_quantile(self, x, stats: NormStats):
         assert stats.q01 is not None
         assert stats.q99 is not None
-        q01, q99 = stats.q01, stats.q99
-        if (dim := q01.shape[-1]) < x.shape[-1]:
-            return np.concatenate([(x[..., :dim] + 1.0) / 2.0 * (q99 - q01 + 1e-6) + q01, x[..., dim:]], axis=-1)
+        q01 = _align_stats_to_data(x, stats.q01, pad_value=0.0)
+        q99 = _align_stats_to_data(x, stats.q99, pad_value=0.0)
         return (x + 1.0) / 2.0 * (q99 - q01 + 1e-6) + q01
 
 
@@ -428,6 +429,35 @@ def pad_to_dim(x: np.ndarray, target_dim: int, axis: int = -1, value: float = 0.
         pad_width[axis] = (0, target_dim - current_dim)
         return np.pad(x, pad_width, constant_values=value)
     return x
+
+
+def _align_stats_to_data(x: np.ndarray, stats_arr: np.ndarray, pad_value: float) -> np.ndarray:
+    """Align a stats vector to the relevant axis of `x`.
+
+    Handles both channel-last (… , C) and channel-first (C, …) layouts, as well
+    as the common (B, C, T) case for force/torque sequences. Falls back to
+    padding/truncating on the last axis when no match is found.
+    """
+
+    stats_arr = np.asarray(stats_arr)
+    target = stats_arr.shape[-1]
+
+    # Channel-last (default)
+    if x.shape[-1] == target:
+        return pad_to_dim(stats_arr, x.shape[-1], axis=-1, value=pad_value)
+
+    # Channel-first (e.g., (C, T) force/torque)
+    if x.ndim >= 1 and x.shape[0] == target:
+        return stats_arr.reshape((target,) + (1,) * (x.ndim - 1))
+
+    # Channel in the second-to-last axis (e.g., (B, C, T))
+    if x.ndim >= 3 and x.shape[-2] == target:
+        return stats_arr.reshape((1,) * (x.ndim - 2) + (target, 1))
+
+    # No compatible alignment found
+    raise ValueError(
+        f"Cannot align norm stats of length {target} to data shape {x.shape}; expected channel size {target} on last, first, or second-to-last axis."
+    )
 
 
 def make_bool_mask(*dims: int) -> tuple[bool, ...]:

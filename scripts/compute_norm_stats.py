@@ -104,14 +104,46 @@ def main(config_name: str, max_frames: int | None = None):
             data_config, effective_action_horizon, config.batch_size, config.model, config.num_workers, max_frames
         )
 
-    keys = ["state", "actions"]
-    stats = {key: normalize.RunningStats() for key in keys}
+    paths = ["state", "actions", "force_torques/left_ft", "force_torques/right_ft"]
+    stats: dict[str, normalize.RunningStats] = {}
+
+    def _maybe_get(batch: dict, path: str):
+        cur = batch
+        for part in path.split("/"):
+            if part not in cur:
+                return None
+            cur = cur[part]
+        return cur
+
+    def _prepare_for_stats(value: object, path: str) -> np.ndarray:
+        arr = np.asarray(value)
+        if not path.startswith("force_torques"):
+            return arr
+
+        # Ensure the 6-axis dimension sits in the last position so RunningStats computes per-axis stats.
+        if arr.shape[-1] == 6:
+            return arr
+
+        # Try to find a dimension of size 6 and move it to the last axis.
+        axis_candidates = [i for i, dim in enumerate(arr.shape) if dim == 6]
+        if axis_candidates:
+            arr = np.moveaxis(arr, axis_candidates[0], -1)
+            return arr
+
+        raise ValueError(
+            f"Expected a 6-axis force/torque tensor for {path}, got shape {arr.shape}. "
+            "Please ensure FT data is shaped (6, horizon) or has a dimension of size 6."
+        )
 
     for batch in tqdm.tqdm(data_loader, total=num_batches, desc="Computing stats"):
-        for key in keys:
-            stats[key].update(np.asarray(batch[key]))
+        for path in paths:
+            if (val := _maybe_get(batch, path)) is None:
+                continue
+            if path not in stats:
+                stats[path] = normalize.RunningStats()
+            stats[path].update(_prepare_for_stats(val, path))
 
-    norm_stats = {key: stats.get_statistics() for key, stats in stats.items()}
+    norm_stats = {path: rs.get_statistics() for path, rs in stats.items()}
 
     asset_name = (
         data_config.asset_id

@@ -23,6 +23,8 @@ import openpi.policies.libero_policy as libero_policy
 import openpi.policies.ur3_robotiq_policy as ur3_robotiq_policy
 import openpi.policies.ur3_robotiq_cartesian_policy as ur3_robotiq_cartesian_policy
 import openpi.policies.ur3_robotiq_cartesian_simple_policy as ur3_robotiq_cartesian_simple_policy
+import openpi.policies.ft_angles as ft_angles
+import openpi.policies.ft_cartesian_pos as ft_cartesian_pos
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
 import openpi.training.droid_rlds_dataset as droid_rlds_dataset
@@ -499,8 +501,12 @@ class TrainConfig:
 
     # When reinitializing the action expert, optionally freeze the pretrained backbone for the initial
     # portion of training so only the freshly initialized projection layers learn. Expressed as a
-    # fraction of total training steps; set to 0 to disable.
+    # fraction of total training steps; set to 0 to disable. If freeze_pretrained_steps > 0, that value
+    # takes precedence over the fraction.
     freeze_pretrained_fraction: float = 0.0
+
+    # Alternatively, freeze for a fixed number of steps (overrides freeze_pretrained_fraction when > 0).
+    freeze_pretrained_steps: int = 0
 
     # Precision for PyTorch training.
     pytorch_training_precision: Literal["bfloat16", "float32"] = "bfloat16"
@@ -524,6 +530,8 @@ class TrainConfig:
     seed: int = 42
     # Global batch size.
     batch_size: int = 32
+    # Optional validation batch size (global). If None, uses `batch_size`.
+    val_batch_size: int | None = 32
     # Number of workers to use for the data loader. Increasing this number will speed up data loading but
     # will increase memory and CPU usage.
     num_workers: int = 2
@@ -670,7 +678,7 @@ _CONFIGS = [
         log_interval=50,
         save_interval=5000,
         pytorch_weight_path="/work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi0_base_pytorch/",
-        freeze_pretrained_fraction=0.1,
+        freeze_pretrained_steps=15000,
         data=SimpleDataConfig(
             repo_id=None,
             assets=AssetsConfig(asset_id="lan_ur3_lerobot"),
@@ -701,6 +709,91 @@ _CONFIGS = [
         ),
     ),
     TrainConfig(
+        name="pi0_ur3_robotiq_lora",
+        model=pi0_config.Pi0Config(
+            paligemma_variant="gemma_2b_lora",
+            action_expert_variant="gemma_300m_lora",
+        ),
+        num_train_steps=30000,
+        log_interval=50,
+        save_interval=5000,
+        pytorch_weight_path="/work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi0_base_pytorch/",
+        freeze_pretrained_steps=5000,
+        data=SimpleDataConfig(
+            repo_id=None,
+            assets=AssetsConfig(asset_id="lan_ur3_lerobot"),
+            data_transforms=lambda model: _transforms.Group(
+                inputs=[ur3_robotiq_policy.Ur3RobotiqInputs(model_type=model.model_type)],
+                outputs=[ur3_robotiq_policy.Ur3RobotiqOutputs()],
+            ),
+            base_config=DataConfig(
+                prompt_from_task=True,
+                local_repo_path="/work/gr41/r41000/data/lan_ur3_lerobot",
+                action_sequence_keys=(),
+                repack_transforms=_transforms.Group(
+                    inputs=[
+                        _transforms.RepackTransform(
+                            {
+                                "images": {
+                                    "cam_high": "images.cam_fixed",
+                                    "cam_left_wrist": "images.cam_wrist",
+                                },
+                                "state": "state",
+                                "actions": "actions",
+                                "prompt": "prompt",
+                            }
+                        )
+                    ]
+                ),
+            ),
+        ),
+    ),
+    TrainConfig(
+        name="pi0_ur3_robotiq_ft_lora",
+        model=pi0_config.Pi0Config(
+            paligemma_variant="gemma_2b_lora",
+            action_expert_variant="gemma_300m_lora",
+        ),
+        num_train_steps=10000,
+        log_interval=50,
+        save_interval=5000,
+        pytorch_weight_path="/work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi0_base_pytorch/",
+        freeze_pretrained_steps=1000,
+        # batch_size=128,
+        data=SimpleDataConfig(
+            repo_id=None,
+            assets=AssetsConfig(asset_id="lan_ur3_lerobot"),
+            data_transforms=lambda model: _transforms.Group(
+                inputs=[ft_angles.Ur3RobotiqInputs(model_type=model.model_type)],
+                outputs=[ft_angles.Ur3RobotiqOutputs()],
+            ),
+            base_config=DataConfig(
+                prompt_from_task=True,
+                local_repo_path="/work/gr41/r41000/data/lan_ur3_lerobot",
+                action_sequence_keys=(),
+                repack_transforms=_transforms.Group(
+                    inputs=[
+                        _transforms.RepackTransform(
+                            {
+                                "images": {
+                                    "cam_high": "images.cam_fixed",
+                                    "cam_left_wrist": "images.cam_wrist",
+                                },
+                                "state": "state",
+                                "actions": "actions",
+                                "prompt": "prompt",
+                                "force_torques": {
+                                    "left": "left_ft",
+                                    "right": "right_ft",
+                                },
+                            }
+                        )
+                    ]
+                ),
+            ),
+        ),
+    ),
+    TrainConfig(
         name="pi0_ur3_robotiq_cartesian",
         model=pi0_config.Pi0Config(action_dim=8, action_horizon=50),
         num_train_steps=10000,
@@ -708,7 +801,7 @@ _CONFIGS = [
         save_interval=5000,
         pytorch_weight_path="/work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi0_base_pytorch/",
         reinit_action_expert=True,
-        freeze_pretrained_fraction=0.1,
+        freeze_pretrained_steps=5000,
         data=SimpleDataConfig(
             repo_id=None,
             assets=AssetsConfig(asset_id="lan_ur3_lerobot_cartesian"),
@@ -746,7 +839,7 @@ _CONFIGS = [
         save_interval=5000,
         pytorch_weight_path="/work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi0_base_pytorch/",
         reinit_action_expert=True,
-        freeze_pretrained_fraction=0.1,
+        freeze_pretrained_steps=15000,
         data=SimpleDataConfig(
             repo_id=None,
             assets=AssetsConfig(asset_id="lan_ur3_lerobot_cartesian_pos"),
@@ -771,6 +864,144 @@ _CONFIGS = [
                                 "state": "state",
                                 "actions": "actions",
                                 "prompt": "prompt",
+                            }
+                        )
+                    ]
+                ),
+            ),
+        ),
+    ),
+    TrainConfig(
+        name="pi0_ur3_robotiq_cartesian_pos_lora",
+        model=pi0_config.Pi0Config(
+            action_dim=4,
+            action_horizon=50,
+            paligemma_variant="gemma_2b_lora",
+            action_expert_variant="gemma_300m",
+        ),
+        num_train_steps=30000,
+        log_interval=50,
+        save_interval=5000,
+        pytorch_weight_path="/work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi0_base_pytorch/",
+        reinit_action_expert=True,
+        freeze_pretrained_steps=15000,
+        data=SimpleDataConfig(
+            repo_id=None,
+            assets=AssetsConfig(asset_id="lan_ur3_lerobot_cartesian_pos"),
+            data_transforms=lambda model: _transforms.Group(
+                inputs=[
+                    ur3_robotiq_cartesian_simple_policy.Ur3RobotiqInputs(model_type=model.model_type)
+                ],
+                outputs=[ur3_robotiq_cartesian_simple_policy.Ur3RobotiqOutputs()],
+            ),
+            base_config=DataConfig(
+                prompt_from_task=True,
+                local_repo_path="/work/gr41/r41000/data/lan_ur3_lerobot_cartesian",
+                action_sequence_keys=(),
+                repack_transforms=_transforms.Group(
+                    inputs=[
+                        _transforms.RepackTransform(
+                            {
+                                "images": {
+                                    "cam_high": "images.cam_fixed",
+                                    "cam_left_wrist": "images.cam_wrist",
+                                },
+                                "state": "state",
+                                "actions": "actions",
+                                "prompt": "prompt",
+                            }
+                        )
+                    ]
+                ),
+            ),
+        ),
+    ),
+    TrainConfig(
+        name="pi0_ur3_robotiq_cartesian_pos_ft",
+        model=pi0_config.Pi0Config(action_dim=4, action_horizon=50),
+        num_train_steps=30000,
+        log_interval=50,
+        save_interval=5000,
+        pytorch_weight_path="/work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi0_base_pytorch/",
+        reinit_action_expert=True,
+        freeze_pretrained_steps=15000,
+        data=SimpleDataConfig(
+            repo_id=None,
+            assets=AssetsConfig(asset_id="lan_ur3_lerobot_cartesian_pos_ft"),
+            data_transforms=lambda model: _transforms.Group(
+                inputs=[
+                    ft_cartesian_pos.Ur3RobotiqInputs(model_type=model.model_type)
+                ],
+                outputs=[ft_cartesian_pos.Ur3RobotiqOutputs()],
+            ),
+            base_config=DataConfig(
+                prompt_from_task=True,
+                local_repo_path="/work/gr41/r41000/data/lan_ur3_lerobot_cartesian",
+                action_sequence_keys=(),
+                repack_transforms=_transforms.Group(
+                    inputs=[
+                        _transforms.RepackTransform(
+                            {
+                                "images": {
+                                    "cam_high": "images.cam_fixed",
+                                    "cam_left_wrist": "images.cam_wrist",
+                                },
+                                "state": "state",
+                                "actions": "actions",
+                                "prompt": "prompt",
+                                "force_torques": {
+                                    "left": "left_ft",
+                                    "right": "right_ft",
+                                },
+                            }
+                        )
+                    ]
+                ),
+            ),
+        ),
+    ),
+    TrainConfig(
+        name="pi0_ur3_robotiq_cartesian_pos_ft_lora",
+        model=pi0_config.Pi0Config(
+            action_dim=4,
+            action_horizon=50,
+            paligemma_variant="gemma_2b_lora",
+            action_expert_variant="gemma_300m",
+        ),
+        num_train_steps=30000,
+        log_interval=50,
+        save_interval=5000,
+        pytorch_weight_path="/work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi0_base_pytorch/",
+        reinit_action_expert=True,
+        freeze_pretrained_steps=2000,
+        data=SimpleDataConfig(
+            repo_id=None,
+            assets=AssetsConfig(asset_id="lan_ur3_lerobot_cartesian_pos_ft"),
+            data_transforms=lambda model: _transforms.Group(
+                inputs=[
+                    ft_cartesian_pos.Ur3RobotiqInputs(model_type=model.model_type)
+                ],
+                outputs=[ft_cartesian_pos.Ur3RobotiqOutputs()],
+            ),
+            base_config=DataConfig(
+                prompt_from_task=True,
+                local_repo_path="/work/gr41/r41000/data/lan_ur3_lerobot_cartesian",
+                action_sequence_keys=(),
+                repack_transforms=_transforms.Group(
+                    inputs=[
+                        _transforms.RepackTransform(
+                            {
+                                "images": {
+                                    "cam_high": "images.cam_fixed",
+                                    "cam_left_wrist": "images.cam_wrist",
+                                },
+                                "state": "state",
+                                "actions": "actions",
+                                "prompt": "prompt",
+                                "force_torques": {
+                                    "left": "left_ft",
+                                    "right": "right_ft",
+                                },
                             }
                         )
                     ]

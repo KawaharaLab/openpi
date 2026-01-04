@@ -15,7 +15,11 @@ IMAGE_KEYS = (
 )
 
 IMAGE_RESOLUTION = (224, 224)
-
+FORCE_TORQUE_KEYS = (
+    "left_ft",
+    "right_ft",
+)
+DEFAULT_FT_HORIZON = 300
 
 def preprocess_observation_pytorch(
     observation,
@@ -32,6 +36,7 @@ def preprocess_observation_pytorch(
         raise ValueError(f"images dict missing keys: expected {image_keys}, got {list(observation.images)}")
 
     batch_shape = observation.state.shape[:-1]
+    batch_shape_tuple = tuple(batch_shape)
 
     out_images = {}
     for key in image_keys:
@@ -156,6 +161,59 @@ def preprocess_observation_pytorch(
         else:
             out_masks[key] = observation.image_masks[key]
 
+    # Force/torque signals are optional. Normalize shapes to [*batch, horizon, 6]
+    # and carry a per-sensor mask so missing sensors can be ignored downstream.
+    out_fts = {}
+    out_ft_masks = {}
+    ft_horizon = None
+    has_force_torques = hasattr(observation, "force_torques") and observation.force_torques is not None
+    if has_force_torques:
+        device = observation.state.device
+        batch_shape_tuple = tuple(batch_shape)
+
+        def _normalize_ft(ft: torch.Tensor, target_horizon: int | None) -> tuple[torch.Tensor, int]:
+            ft = torch.as_tensor(ft, device=device, dtype=torch.float32)
+
+            # If batch dimension is missing, broadcast across the current batch.
+            if ft.dim() == 2:
+                ft = ft.unsqueeze(0).expand(batch_shape_tuple + ft.shape[1:])
+
+            # Accept (..., horizon, 6) or (..., 6, horizon).
+            if ft.shape[-1] == 6:
+                pass
+            elif ft.shape[-2] == 6:
+                ft = ft.transpose(-1, -2)
+            else:
+                raise ValueError(f"Force/torque tensor must have a 6-channel axis, got shape {ft.shape}")
+
+            # Ensure batch dims match observation.state.
+            if tuple(ft.shape[:-2]) != batch_shape_tuple:
+                ft = ft.reshape(batch_shape_tuple + ft.shape[-2:])
+
+            horizon = ft.shape[-2]
+            if target_horizon is None:
+                target_horizon = horizon
+            elif horizon != target_horizon:
+                if horizon > target_horizon:
+                    ft = ft[..., -target_horizon:, :]
+                else:
+                    pad = torch.zeros(batch_shape_tuple + (target_horizon - horizon, 6), device=device, dtype=ft.dtype)
+                    ft = torch.cat([ft, pad], dim=-2)
+                horizon = target_horizon
+
+            return ft, horizon
+
+        for key in FORCE_TORQUE_KEYS:
+            if key in observation.force_torques:
+                ft, ft_horizon = _normalize_ft(observation.force_torques[key], ft_horizon)
+                out_ft_masks[key] = torch.ones(batch_shape, dtype=torch.bool, device=device)
+            else:
+                if ft_horizon is None:
+                    ft_horizon = DEFAULT_FT_HORIZON
+                ft = torch.zeros(batch_shape_tuple + (ft_horizon, 6), device=device, dtype=torch.float32)
+                out_ft_masks[key] = torch.zeros(batch_shape_tuple, dtype=torch.bool, device=device)
+            out_fts[key] = ft
+
     # Create a simple object with the required attributes instead of using the complex Observation class
     class SimpleProcessedObservation:
         def __init__(self, **kwargs):
@@ -165,6 +223,8 @@ def preprocess_observation_pytorch(
     return SimpleProcessedObservation(
         images=out_images,
         image_masks=out_masks,
+        force_torques=out_fts,
+        force_torque_masks=out_ft_masks,
         state=observation.state,
         tokenized_prompt=observation.tokenized_prompt,
         tokenized_prompt_mask=observation.tokenized_prompt_mask,

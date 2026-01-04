@@ -40,6 +40,7 @@ import csv
 import dataclasses
 import json
 import logging
+from collections import deque
 from pathlib import Path
 import shutil
 from typing import Iterable, Sequence
@@ -52,7 +53,7 @@ import tyro
 
 GRIPPER_ACTION_OPEN = 0.140  # m
 GRIPPER_ACTION_CLOSE = 0.002  # m
-
+FT_HORIZON = 300  # number of recent force/torque samples to retain per frame
 
 @dataclasses.dataclass
 class ConvertConfig:
@@ -63,6 +64,7 @@ class ConvertConfig:
     action_hz: float = 20.0  # action sampling rate (Hz) for horizon
     push_to_hub: bool = False
     local_output_dirname: str = "lan_ur3_lerobot_cartesian"
+    ft_horizon: int = 300  # number of recent force/torque samples to retain per frame
 
 
 def _reorder_joints_to_feature_order(values: np.ndarray) -> np.ndarray:
@@ -179,6 +181,7 @@ def _create_dataset(
     state_names: list[str],
     action_names: list[str],
     action_horizon: int,
+    ft_horizon: int,
 ) -> tuple[LeRobotDataset, Path]:
     output_path = HF_LEROBOT_HOME / repo_id
     if output_path.exists():
@@ -202,13 +205,13 @@ def _create_dataset(
         },
         "left_ft": {
             "dtype": "float32",
-            "shape": (6,),
-            "names": ["fx", "fy", "fz", "tx", "ty", "tz"],
+            "shape": (6, ft_horizon),
+            "names": ["component", "time"],
         },
         "right_ft": {
             "dtype": "float32",
-            "shape": (6,),
-            "names": ["fx", "fy", "fz", "tx", "ty", "tz"],
+            "shape": (6, ft_horizon),
+            "names": ["component", "time"],
         },
         "actions": {
             "dtype": "float32",
@@ -399,6 +402,7 @@ def _convert_session(session_dir: Path, dataset: LeRobotDataset, cfg: ConvertCon
     # Pointers and last-values for carry-forward.
     idx = {k: 0 for k in streams.keys()}
     last = {k: None for k in streams.keys()}
+    ft_hist = {"left_force": deque(maxlen=cfg.ft_horizon), "right_force": deque(maxlen=cfg.ft_horizon)}
     cam_idx = {"fixed": 0, "wrist": 0}
     cam_last = {"fixed": None, "wrist": None}
 
@@ -413,7 +417,10 @@ def _convert_session(session_dir: Path, dataset: LeRobotDataset, cfg: ConvertCon
     for t in tqdm(time_grid, desc=f"Session {session_dir.name}"):
         for key, data in streams.items():
             while idx[key] < len(data) and data[idx[key]][0] <= t:
-                last[key] = data[idx[key]][1]
+                sample = data[idx[key]][1]
+                last[key] = sample
+                if key in ft_hist:
+                    ft_hist[key].append(sample)
                 idx[key] += 1
 
         for key, data in {"fixed": camera_fixed, "wrist": camera_wrist}.items():
@@ -465,12 +472,26 @@ def _convert_session(session_dir: Path, dataset: LeRobotDataset, cfg: ConvertCon
             skipped += 1
             continue
 
+        def _stack_ft(history: deque[np.ndarray]) -> np.ndarray:
+            # Stack last N samples; if insufficient history (e.g., first ~3s),
+            # front-fill with the oldest available sample instead of zeros.
+            if not history:
+                return np.zeros((6, cfg.ft_horizon), dtype=np.float32)
+
+            tail = np.asarray(history, dtype=np.float32)
+            tail = tail[-cfg.ft_horizon :]
+            if tail.shape[0] < cfg.ft_horizon:
+                pad_len = cfg.ft_horizon - tail.shape[0]
+                pad = np.repeat(tail[0:1], pad_len, axis=0)  # repeat oldest sample
+                tail = np.concatenate([pad, tail], axis=0)
+            return tail.T  # (6, horizon)
+
         frame = {
             "images.cam_fixed": fixed_img,
             "images.cam_wrist": wrist_img,
             "state": state_vec,
-            "left_ft": last["left_force"],
-            "right_ft": last["right_force"],
+            "left_ft": _stack_ft(ft_hist["left_force"]),
+            "right_ft": _stack_ft(ft_hist["right_force"]),
             "actions": action_seq,
         }
 
@@ -514,7 +535,15 @@ def main(cfg: ConvertConfig):
         "wrist": wrist_img.shape,
     }
 
-    dataset, dataset_path = _create_dataset(cfg.repo_id, fps=cfg.fps, img_shapes=img_shapes, state_names=state_names, action_names=action_names, action_horizon=cfg.action_horizon)
+    dataset, dataset_path = _create_dataset(
+        cfg.repo_id,
+        fps=cfg.fps,
+        img_shapes=img_shapes,
+        state_names=state_names,
+        action_names=action_names,
+        action_horizon=cfg.action_horizon,
+        ft_horizon=cfg.ft_horizon,
+    )
 
     for session_dir in sessions:
         if not (session_dir / "done.txt").exists():
