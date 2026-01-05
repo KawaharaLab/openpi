@@ -566,7 +566,9 @@ def train_loop(config: _config.TrainConfig):
         else:
             # Allow missing LoRA parameters when base checkpoints do not contain them.
             state_dict = safetensors.torch.load_file(model_path)
-            missing, unexpected = (model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model).load_state_dict(state_dict, strict=not lora_enabled)
+            missing, unexpected = (
+                model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model
+            ).load_state_dict(state_dict, strict=False)
             logging.info(
                 "Loaded PyTorch weights from %s (missing=%s unexpected=%s, lora_enabled=%s)",
                 config.pytorch_weight_path,
@@ -614,18 +616,24 @@ def train_loop(config: _config.TrainConfig):
             root = name.split(".")[0]
             if root in action_roots:
                 train = True
-            elif expert_lora_enabled and ".gemma_expert." in name:
-                # When action expert uses LoRA, keep base frozen and train only LoRA params (after freeze window).
-                train = (name in lora_param_names) and (not freeze_active)
             elif ".gemma_expert." in name:
-                # Non-LoRA action expert: train immediately if reinitialized, otherwise after the freeze window.
-                train = getattr(config, "reinit_action_expert", False) or (not freeze_active)
-            elif lora_enabled and name in lora_param_names:
-                # Keep LoRA frozen during initial freeze window, unfreeze afterwards
-                train = not freeze_active
+                if getattr(config, "reinit_action_expert", False):
+                    # Reinitialized expert trains immediately.
+                    train = True
+                elif expert_lora_enabled:
+                    # Expert with LoRA: freeze base, train LoRA after freeze window.
+                    train = (name in lora_param_names) and (not freeze_active)
+                else:
+                    # Expert without LoRA: train after freeze window.
+                    train = not freeze_active
             else:
-                # paligemma backbone (including any non-LoRA paligemma weights) stays frozen
-                train = False
+                # Paligemma (or other non-expert params)
+                if pal_lora_enabled:
+                    # Paligemma with LoRA: freeze base, train LoRA after freeze window.
+                    train = (name in lora_param_names) and (not freeze_active)
+                else:
+                    # Paligemma without LoRA: train after freeze window.
+                    train = not freeze_active
             param.requires_grad = train
             if train:
                 trainable_params += 1

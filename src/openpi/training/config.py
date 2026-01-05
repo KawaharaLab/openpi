@@ -759,6 +759,51 @@ _CONFIGS = [
         save_interval=5000,
         pytorch_weight_path="/work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi0_base_pytorch/",
         freeze_pretrained_steps=1000,
+        batch_size=128,
+        data=SimpleDataConfig(
+            repo_id=None,
+            assets=AssetsConfig(asset_id="lan_ur3_lerobot"),
+            data_transforms=lambda model: _transforms.Group(
+                inputs=[ft_angles.Ur3RobotiqInputs(model_type=model.model_type)],
+                outputs=[ft_angles.Ur3RobotiqOutputs()],
+            ),
+            base_config=DataConfig(
+                prompt_from_task=True,
+                local_repo_path="/work/gr41/r41000/data/lan_ur3_lerobot",
+                action_sequence_keys=(),
+                repack_transforms=_transforms.Group(
+                    inputs=[
+                        _transforms.RepackTransform(
+                            {
+                                "images": {
+                                    "cam_high": "images.cam_fixed",
+                                    "cam_left_wrist": "images.cam_wrist",
+                                },
+                                "state": "state",
+                                "actions": "actions",
+                                "prompt": "prompt",
+                                "force_torques": {
+                                    "left": "left_ft",
+                                    "right": "right_ft",
+                                },
+                            }
+                        )
+                    ]
+                ),
+            ),
+        ),
+    ),
+    TrainConfig(
+        name="pi0_ur3_robotiq_ft",
+        model=pi0_config.Pi0Config(
+            paligemma_variant="gemma_2b",
+            action_expert_variant="gemma_300m",
+        ),
+        num_train_steps=10000,
+        log_interval=50,
+        save_interval=5000,
+        pytorch_weight_path="/work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi0_base_pytorch/",
+        freeze_pretrained_steps=1000,
         # batch_size=128,
         data=SimpleDataConfig(
             repo_id=None,
