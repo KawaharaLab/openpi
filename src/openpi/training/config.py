@@ -511,6 +511,9 @@ class TrainConfig:
     # Precision for PyTorch training.
     pytorch_training_precision: Literal["bfloat16", "float32"] = "bfloat16"
 
+    # Enable/disable PyTorch gradient checkpointing (memory vs. speed tradeoff).
+    pytorch_gradient_checkpointing: bool = True
+
     lr_schedule: _optimizer.LRScheduleConfig = dataclasses.field(default_factory=_optimizer.CosineDecaySchedule)
     optimizer: _optimizer.OptimizerConfig = dataclasses.field(default_factory=_optimizer.AdamW)
     ema_decay: float | None = 0.99
@@ -800,21 +803,21 @@ _CONFIGS = [
             action_expert_variant="gemma_300m",
         ),
         num_train_steps=10000,
-        log_interval=50,
+        log_interval=150,
         save_interval=5000,
         pytorch_weight_path="/work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi0_base_pytorch/",
         freeze_pretrained_steps=1000,
         # batch_size=128,
         data=SimpleDataConfig(
             repo_id=None,
-            assets=AssetsConfig(asset_id="lan_ur3_lerobot"),
+            assets=AssetsConfig(asset_id="lan_ur3_lerobot_forward"),
             data_transforms=lambda model: _transforms.Group(
                 inputs=[ft_angles.Ur3RobotiqInputs(model_type=model.model_type)],
                 outputs=[ft_angles.Ur3RobotiqOutputs()],
             ),
             base_config=DataConfig(
                 prompt_from_task=True,
-                local_repo_path="/work/gr41/r41000/data/lan_ur3_lerobot",
+                local_repo_path="/work/gr41/r41000/data/lan_ur3_lerobot_forward",
                 action_sequence_keys=(),
                 repack_transforms=_transforms.Group(
                     inputs=[
@@ -1063,6 +1066,36 @@ _CONFIGS = [
             data_transforms=lambda model: _transforms.Group(
                 inputs=[ur3_robotiq_policy.Ur3RobotiqInputs(model_type=model.model_type)],
                 outputs=[ur3_robotiq_policy.Ur3RobotiqOutputs()],
+            ),
+            base_config=DataConfig(
+                prompt_from_task=True,
+                repack_transforms=_transforms.Group(
+                    inputs=[
+                        _transforms.RepackTransform(
+                            {
+                                "images": {
+                                    "cam_high": "images.cam_fixed",
+                                    "cam_left_wrist": "images.cam_wrist",
+                                },
+                                "state": "state",
+                                "actions": "actions",
+                                "prompt": "prompt",
+                            }
+                        )
+                    ]
+                ),
+            ),
+        ),
+    ),
+    TrainConfig(
+        name="pi05_ur3_robotiq_ft",
+        model=pi0_config.Pi0Config(pi05=True),
+        data=SimpleDataConfig(
+            repo_id="pick_and_place_lerobot",
+            assets=AssetsConfig(),
+            data_transforms=lambda model: _transforms.Group(
+                inputs=[ft_angles.Ur3RobotiqInputs(model_type=model.model_type)],
+                outputs=[ft_angles.Ur3RobotiqOutputs()],
             ),
             base_config=DataConfig(
                 prompt_from_task=True,

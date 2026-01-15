@@ -1,5 +1,5 @@
 #!/bin/bash
-#PBS -q short-g
+#PBS -q regular-g
 #PBS -l select=1
 #PBS -W group_list=gr41
 
@@ -18,7 +18,7 @@ source .venv/bin/activate
 # python scripts/train_pytorch.py pi0_ur3_robotiq --exp-name full_fix
 # python ./scripts/train_pytorch.py pi0_ur3_robotiq_cartesian_pos --exp-name full_trial
 # python ./scripts/train_pytorch.py pi0_ur3_robotiq_cartesian_pos_ft_lora --exp-name trial --reinit-action-expert
-python ./scripts/train_pytorch.py pi0_ur3_robotiq_ft_lora --exp-name full --batch-size 32 --freeze-pretrained-steps 4000
+python ./scripts/train_pytorch.py pi0_ur3_robotiq_ft --exp-name long --batch-size 128 --freeze-pretrained-steps 12000 --num_train_steps 20000 --save_interval 10000
 # python examples/ur3_robotiq/convert_lan_to_lerobot_cartesian.py
 # python examples/ur3_robotiq/convert_lan_to_lerobot.py
 # python ./scripts/compute_norm_stats.py --config-name pi0_ur3_robotiq_cartesian_pos_ft_lora

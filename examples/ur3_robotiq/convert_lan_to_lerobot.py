@@ -57,14 +57,14 @@ GRIPPER_ACTION_CLOSE = 0.002 # m
 
 @dataclasses.dataclass
 class ConvertConfig:
-    data_root: Path = Path("../data/lan")
+    data_root: Path = Path("../data/lan_forward")
     repo_id: str = "uzumi-bi/lan_ur3"
     fps: float = 5.0  # fixed 5 Hz resampling
     action_horizon: int = 50  # number of future actions to include
     action_hz: float = 20.0  # action sampling rate (Hz) for horizon
     push_to_hub: bool = False
-    local_output_dirname: str = "lan_ur3_lerobot"
-    ft_horizon: int = 300  # number of recent force/torque samples to retain per frame
+    local_output_dirname: str = "lan_ur3_lerobot_forward"
+    ft_horizon: int = 200  # number of recent force/torque samples to retain per frame
 
 
 def _reorder_joints_to_feature_order(values: np.ndarray) -> np.ndarray:
@@ -243,13 +243,18 @@ def _prepare_streams(session_dir: Path):
         },
     )
 
+    # controller_state = _load_csv_pairs(
+    #     csv_root / "scaled_joint_trajectory_controller_controller_state.csv",
+    #     lambda row: {
+    #         "ref_pos": _parse_array(row["reference_joint_positions"], expected_len=6), # DO NOT reorder actions, do not include velocities
+    #     },
+    # )
     controller_state = _load_csv_pairs(
-        csv_root / "scaled_joint_trajectory_controller_controller_state.csv",
+        csv_root / "forward_position_controller_commands.csv",
         lambda row: {
-            "ref_pos": _parse_array(row["reference_joint_positions"], expected_len=6), # DO NOT reorder actions, do not include velocities
+            "ref_pos": _parse_array(row["forward_position_controller_commands.data"], expected_len=6), # DO NOT reorder actions, do not include velocities
         },
     )
-
     gripper_goal = _load_csv_pairs(
         csv_root / "robotiq_2f_gripper_action_goal.csv",
         # Normalize so fully open -> 0, fully closed -> 1.
@@ -475,6 +480,17 @@ def main(cfg: ConvertConfig):
         if not (session_dir / "done.txt").exists():
             logging.warning("Skipping %s: missing done.txt (decode likely failed)", session_dir.name)
             continue
+        # if number written in score.txt is less than 2 or not able to cast to int, skip
+        score_path = session_dir / "score.txt"
+        if score_path.exists():
+            try:
+                score = int(score_path.read_text().strip())
+            except ValueError:
+                logging.warning("Skipping %s: score.txt is not a valid integer", session_dir.name)
+                continue
+            if score < 2:
+                logging.warning("Skipping %s: score %d < 2", session_dir.name, score)
+                continue
         _convert_session(session_dir, dataset, cfg)
 
     if cfg.push_to_hub:

@@ -28,6 +28,7 @@ import gc
 import logging
 import os
 import platform
+import socket
 import pickle
 import shutil
 import time
@@ -85,7 +86,7 @@ def init_wandb(
     """Initialize wandb logging and return the resolved run directory and name."""
     if not enabled:
         wandb.init(mode="disabled")
-        resolved_name = run_name or "disabled"
+        resolved_name = run_name or wandb.run.name or "disabled"
         resolved_dir = run_dir or (base_dir / resolved_name)
         return resolved_dir, resolved_name
 
@@ -102,7 +103,7 @@ def init_wandb(
             config=dataclasses.asdict(config),
             project=config.name,
         )
-        resolved_name = run_name or wandb.run.name
+        resolved_name = run_name or wandb.run.name or "offline"
         resolved_dir = run_dir or (base_dir / resolved_name)
         if resolved_dir.exists():
             if overwrite:
@@ -345,10 +346,85 @@ def log_memory_usage(device, step, phase="unknown"):
     )
 
 
+def log_gpu_environment(use_ddp: bool, local_rank: int, device: torch.device):
+    """Log visibility and device info to confirm GPUs are being used as expected."""
+    visible = os.environ.get("CUDA_VISIBLE_DEVICES", "<unset>")
+    world_info = ""
+    if dist.is_initialized():
+        world_info = f" | rank={dist.get_rank()} world_size={dist.get_world_size()}"
+
+    if torch.cuda.is_available() and device.type == "cuda":
+        try:
+            name = torch.cuda.get_device_name(device)
+        except Exception:
+            name = "<unknown>"
+        try:
+            props = torch.cuda.get_device_properties(device)
+            total_mem_gb = getattr(props, "total_memory", 0) / 1e9
+        except Exception:
+            total_mem_gb = 0.0
+
+        all_devices = []
+        for idx in range(torch.cuda.device_count()):
+            try:
+                dname = torch.cuda.get_device_name(idx)
+            except Exception:
+                dname = "<unknown>"
+            all_devices.append(f"{idx}:{dname}")
+
+        logging.info(
+            "GPU env: use_ddp=%s local_rank=%s device=%s cuda_available=%s cuda_visible_devices=%s cuda_device_count=%s current_device=%s device_name=%s total_mem_gb=%.2f%s all_devices=[%s]",
+            use_ddp,
+            local_rank,
+            device,
+            torch.cuda.is_available(),
+            visible,
+            torch.cuda.device_count(),
+            torch.cuda.current_device(),
+            name,
+            total_mem_gb,
+            world_info,
+            ", ".join(all_devices),
+        )
+    else:
+        logging.info(
+            "GPU env: use_ddp=%s local_rank=%s device=%s cuda_available=%s cuda_visible_devices=%s cuda_device_count=%s%s",
+            use_ddp,
+            local_rank,
+            device,
+            torch.cuda.is_available(),
+            visible,
+            torch.cuda.device_count(),
+            world_info,
+        )
+
+
+def log_cpu_environment():
+    """Log CPU availability and affinity for the current process."""
+    total_cpus = os.cpu_count()
+    affinity = None
+    try:
+        affinity = len(os.sched_getaffinity(0))
+    except Exception:
+        affinity = None
+    omp_threads = os.environ.get("OMP_NUM_THREADS", "<unset>")
+    logging.info(
+        "CPU env: pid=%s total_cpus=%s affinity_cpus=%s OMP_NUM_THREADS=%s",
+        os.getpid(),
+        total_cpus,
+        affinity,
+        omp_threads,
+    )
+
+
 def train_loop(config: _config.TrainConfig):
     use_ddp, local_rank, device = setup_ddp()
     is_main = (not use_ddp) or (dist.get_rank() == 0)
     set_seed(config.seed, local_rank)
+
+    # Log GPU visibility and device mapping so multi-GPU runs can be verified in logs.
+    log_gpu_environment(use_ddp, local_rank, device)
+    log_cpu_environment()
 
     # Resolve checkpoint root and run directory (use wandb.run.name to avoid accidental overwrite).
     base_checkpoint_root = pathlib.Path(config.checkpoint_base_dir) / config.name
@@ -500,13 +576,16 @@ def train_loop(config: _config.TrainConfig):
         elif lora_enabled:
             logging.warning("[%s] LoRA expected from config but no LoRALinear modules were found.", stage)
 
-    if hasattr(model, "gradient_checkpointing_enable"):
+    if hasattr(model, "gradient_checkpointing_enable") and config.pytorch_gradient_checkpointing:
         enable_gradient_checkpointing = True
         model.gradient_checkpointing_enable()
         logging.info("Enabled gradient checkpointing for memory optimization")
     else:
         enable_gradient_checkpointing = False
-        logging.info("Gradient checkpointing is not supported for this model")
+        logging.info(
+            "Gradient checkpointing is %s",
+            "disabled by config" if hasattr(model, "gradient_checkpointing_enable") else "not supported for this model",
+        )
 
     # Log initial memory usage after model creation
     if is_main and torch.cuda.is_available():
@@ -913,7 +992,10 @@ def train_loop(config: _config.TrainConfig):
 def main():
     init_logging()
     config = _config.cli()
-    print(f"torch info: {torch.__version__}, cuda available: {torch.cuda.is_available()}, cuda devices: {torch.cuda.device_count()}")
+    host = socket.gethostname()
+    print(
+        f"[{host}] torch info: {torch.__version__}, cuda available: {torch.cuda.is_available()}, cuda devices: {torch.cuda.device_count()}"
+    )
     train_loop(config)
 
 

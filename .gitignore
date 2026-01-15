@@ -4,6 +4,9 @@ checkpoints/
 wandb/
 data/
 run.sh.*
+multi.sh.*
+short.sh.*
+tmp.sh.*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

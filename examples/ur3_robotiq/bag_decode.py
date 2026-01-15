@@ -232,6 +232,12 @@ _ENCODING_MAP = {
     "32fc1": (np.float32, 1),
 }
 
+# Per-topic crop regions: (x, y, width, height)
+_CROP_MAP: dict[str, tuple[int, int, int, int]] = {
+    "/camera_fixed/realsense2_camera/color/image_raw": (170, 0, 360, 360),
+    "/camera_wrist/realsense2_camera/color/image_raw": (230, 0, 360, 360),
+}
+
 
 def _convert_color(image: np.ndarray, src: str, dst: str) -> np.ndarray:
     if src == dst:
@@ -275,6 +281,29 @@ def _decode_raw_image(message, desired_encoding: Optional[str]) -> np.ndarray:
             str(desired_encoding).lower(),
         )
     return image
+
+
+def _apply_crop(image: np.ndarray, output_topic: str, logger=None) -> np.ndarray:
+    crop = _CROP_MAP.get(output_topic)
+    if crop is None:
+        return image
+
+    x, y, w, h = crop
+    h_img, w_img = image.shape[:2]
+    x2 = min(w_img, x + w)
+    y2 = min(h_img, y + h)
+
+    if x >= w_img or y >= h_img or x2 <= x or y2 <= y:
+        if logger:
+            logger.warning(
+                "Skip crop for %s: crop window outside image bounds (%sx%s)",
+                output_topic,
+                w_img,
+                h_img,
+            )
+        return image
+
+    return image[y:y2, x:x2]
 
 
 _FALLBACK_MSG_DEFS = {
@@ -445,6 +474,7 @@ def convert_bag_to_dataset(
                             image = _decode_compressed_image(message)
                         else:
                             image = _decode_raw_image(message, spec.encoding)
+                        image = _apply_crop(image, output_topic, logger)
                     except Exception as exc:  # noqa: BLE001
                         skipped_messages[connection.topic] += 1
                         if logger and skipped_messages[connection.topic] == 1:
@@ -518,7 +548,7 @@ def cli_main() -> None:
         default="../data/lan",
         help="Root directory that contains per-session folders under */bag/session_* (batch mode)",
     )
-    parser.add_argument(
+    parser.add_argument( 
         "--all",
         action="store_true",
         help="If set, process every bag under --lan-root matching */bag/session_*",
