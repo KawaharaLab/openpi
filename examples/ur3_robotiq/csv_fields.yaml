@@ -22,6 +22,14 @@ topics:
       stamp_ns: stamp_ns
       scaled_joint_trajectory_controller_controller_state.reference.positions: reference_joint_positions
       scaled_joint_trajectory_controller_controller_state.reference.velocities: reference_joint_velocities
+  /scaled_joint_trajectory_controller/joint_trajectory:
+    fields:
+      stamp_ns: stamp_ns
+      scaled_joint_trajectory_controller_joint_trajectory.points[0].positions: action_positions
+  /forward_position_controller/commands:
+    fields:
+      stamp_ns: stamp_ns
+      forward_position_controller_commands.data: action_positions
   /joint_states:
     fields:
       stamp_ns: stamp_ns

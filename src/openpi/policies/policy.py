@@ -33,6 +33,7 @@ class Policy(BasePolicy):
         metadata: dict[str, Any] | None = None,
         pytorch_device: str = "cpu",
         is_pytorch: bool = False,
+        norm_stats: dict[str, _transforms.NormStats] | None = None,
     ):
         """Initialize the Policy.
 
@@ -54,6 +55,7 @@ class Policy(BasePolicy):
         self._metadata = metadata or {}
         self._is_pytorch_model = is_pytorch
         self._pytorch_device = pytorch_device
+        self._norm_stats = norm_stats or {}
 
         if self._is_pytorch_model:
             self._model = self._model.to(pytorch_device)
@@ -69,7 +71,7 @@ class Policy(BasePolicy):
         # Make a copy since transformations may modify the inputs in place.
         inputs = jax.tree.map(lambda x: x, obs)
         print("input before transform:", inputs["state"])
-        print("input before transform (degrees):", inputs["state"] * 180.0 / np.pi)
+        print("ft length:", inputs["force_torques"]["left_ft"].shape[0])
         inputs = self._input_transform(inputs)
         if not self._is_pytorch_model:
             # Make a batch and convert to jax.Array.
@@ -95,6 +97,22 @@ class Policy(BasePolicy):
             "state": inputs["state"],
             "actions": self._sample_actions(sample_rng_or_pytorch_device, observation, **sample_kwargs),
         }
+
+        # Slice back to the stats-defined dims before output transforms/unnormalize.
+        action_stats = self._norm_stats.get("actions") if isinstance(self._norm_stats, dict) else None
+        if action_stats is not None:
+            target_action_dim = int(np.asarray(action_stats.mean).shape[-1])
+            outputs["actions"] = outputs["actions"][..., :target_action_dim]
+
+        state_stats = self._norm_stats.get("state") if isinstance(self._norm_stats, dict) else None
+        if state_stats is not None:
+            target_state_dim = int(np.asarray(state_stats.mean).shape[-1])
+            outputs["state"] = outputs["state"][..., :target_state_dim]
+
+        # Preserve auxiliary inputs (e.g., force/torque) so output transforms with strict
+        # selectors (like unnormalize) can find the expected keys instead of erroring out.
+        if "force_torques" in inputs:
+            outputs["force_torques"] = inputs["force_torques"]
         model_time = time.monotonic() - start_time
         if self._is_pytorch_model:
             outputs = jax.tree.map(lambda x: np.asarray(x[0, ...].detach().cpu()), outputs)

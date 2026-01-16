@@ -74,7 +74,13 @@ class Ur3RobotiqOutputs(transforms.DataTransformFn):
 
     def __call__(self, data: dict) -> dict:
         actions = np.asarray(data["actions"], dtype=np.float32)
-        return {"actions": actions[..., : self.action_dims]}
+        out = {"actions": actions[..., : self.action_dims]}
+        # Preserve auxiliary fields so later unnormalize transforms can find expected keys.
+        if "state" in data:
+            out["state"] = data["state"]
+        if "force_torques" in data:
+            out["force_torques"] = data["force_torques"]
+        return out
 
 
 def _prepare_image(image: np.ndarray | None, *, fallback: np.ndarray | None = None) -> np.ndarray:
