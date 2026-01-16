@@ -19,7 +19,7 @@ FORCE_TORQUE_KEYS = (
     "left_ft",
     "right_ft",
 )
-DEFAULT_FT_HORIZON = 300
+DEFAULT_FT_HORIZON = 200
 
 def preprocess_observation_pytorch(
     observation,

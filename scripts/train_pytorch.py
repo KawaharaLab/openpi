@@ -34,6 +34,10 @@ import shutil
 import time
 import pathlib
 
+WANDB_API_KEY_DEFAULT = "c85b817c62f441243d232b381088358e72fa2b19"
+if not os.environ.get("WANDB_API_KEY"):
+    os.environ["WANDB_API_KEY"] = WANDB_API_KEY_DEFAULT
+
 import jax
 import numpy as np
 import safetensors.torch

@@ -678,20 +678,20 @@ _CONFIGS = [
         name="pi0_ur3_robotiq",
         model=pi0_config.Pi0Config(),
         num_train_steps=30000,
-        log_interval=50,
-        save_interval=5000,
-        pytorch_weight_path="/work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi0_base_pytorch/",
-        freeze_pretrained_steps=15000,
+        log_interval=100,
+        save_interval=10000,
+        pytorch_weight_path="/home/cloud/model/pi0_base_pytorch/",
+        freeze_pretrained_steps=10000,
         data=SimpleDataConfig(
             repo_id=None,
-            assets=AssetsConfig(asset_id="lan_ur3_lerobot"),
+            assets=AssetsConfig(asset_id="lan_ur3_lerobot_forward"),
             data_transforms=lambda model: _transforms.Group(
                 inputs=[ur3_robotiq_policy.Ur3RobotiqInputs(model_type=model.model_type)],
                 outputs=[ur3_robotiq_policy.Ur3RobotiqOutputs()],
             ),
             base_config=DataConfig(
                 prompt_from_task=True,
-                local_repo_path="/work/gr41/r41000/data/lan_ur3_lerobot",
+                local_repo_path="/home/cloud/data/lan_ur3_lerobot_forward",
                 action_sequence_keys=(),
                 repack_transforms=_transforms.Group(
                     inputs=[
@@ -724,14 +724,14 @@ _CONFIGS = [
         freeze_pretrained_steps=5000,
         data=SimpleDataConfig(
             repo_id=None,
-            assets=AssetsConfig(asset_id="lan_ur3_lerobot"),
+            assets=AssetsConfig(asset_id="lan_ur3_lerobot_forward"),
             data_transforms=lambda model: _transforms.Group(
                 inputs=[ur3_robotiq_policy.Ur3RobotiqInputs(model_type=model.model_type)],
                 outputs=[ur3_robotiq_policy.Ur3RobotiqOutputs()],
             ),
             base_config=DataConfig(
                 prompt_from_task=True,
-                local_repo_path="/work/gr41/r41000/data/lan_ur3_lerobot",
+                local_repo_path="/home/cloud/data/lan_ur3_lerobot_forward",
                 action_sequence_keys=(),
                 repack_transforms=_transforms.Group(
                     inputs=[
@@ -765,14 +765,14 @@ _CONFIGS = [
         batch_size=128,
         data=SimpleDataConfig(
             repo_id=None,
-            assets=AssetsConfig(asset_id="lan_ur3_lerobot"),
+            assets=AssetsConfig(asset_id="lan_ur3_lerobot_forward"),
             data_transforms=lambda model: _transforms.Group(
                 inputs=[ft_angles.Ur3RobotiqInputs(model_type=model.model_type)],
                 outputs=[ft_angles.Ur3RobotiqOutputs()],
             ),
             base_config=DataConfig(
                 prompt_from_task=True,
-                local_repo_path="/work/gr41/r41000/data/lan_ur3_lerobot",
+                local_repo_path="/home/cloud/data/lan_ur3_lerobot_forward",
                 action_sequence_keys=(),
                 repack_transforms=_transforms.Group(
                     inputs=[
@@ -805,7 +805,7 @@ _CONFIGS = [
         num_train_steps=10000,
         log_interval=150,
         save_interval=5000,
-        pytorch_weight_path="/work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi0_base_pytorch/",
+        pytorch_weight_path="/home/cloud/model/pi0_base_pytorch/",
         freeze_pretrained_steps=1000,
         # batch_size=128,
         data=SimpleDataConfig(
@@ -817,7 +817,7 @@ _CONFIGS = [
             ),
             base_config=DataConfig(
                 prompt_from_task=True,
-                local_repo_path="/work/gr41/r41000/data/lan_ur3_lerobot_forward",
+                local_repo_path="/home/cloud/data/lan_ur3_lerobot_forward",
                 action_sequence_keys=(),
                 repack_transforms=_transforms.Group(
                     inputs=[
@@ -847,7 +847,7 @@ _CONFIGS = [
         num_train_steps=10000,
         log_interval=50,
         save_interval=5000,
-        pytorch_weight_path="/work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi0_base_pytorch/",
+        pytorch_weight_path="/home/cloud/model/openpi/openpi-assets/checkpoints/pi0_base_pytorch/",
         reinit_action_expert=True,
         freeze_pretrained_steps=5000,
         data=SimpleDataConfig(
