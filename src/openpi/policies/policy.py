@@ -71,7 +71,7 @@ class Policy(BasePolicy):
         # Make a copy since transformations may modify the inputs in place.
         inputs = jax.tree.map(lambda x: x, obs)
         print("input before transform:", inputs["state"])
-        print("ft length:", inputs["force_torques"]["left_ft"].shape[0])
+        print("ft shape:", inputs["force_torques"]["left_ft"].shape)
         inputs = self._input_transform(inputs)
         if not self._is_pytorch_model:
             # Make a batch and convert to jax.Array.
