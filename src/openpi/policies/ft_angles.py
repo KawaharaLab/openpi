@@ -6,6 +6,7 @@ import dataclasses
 
 import numpy as np
 from PIL import Image
+import logging
 
 from openpi import transforms
 from openpi.models import model as _model
@@ -31,8 +32,19 @@ class Ur3RobotiqInputs(transforms.DataTransformFn):
         base_img = _prepare_image(images.get(_IMAGE_KEYS["base"]))
         wrist_img = _prepare_image(images.get(_IMAGE_KEYS["wrist"]), fallback=base_img)
 
-        left_ft = _prepare_ft(data.get("force_torques", {}).get("left"))
-        right_ft = _prepare_ft(data.get("force_torques", {}).get("right"))
+        ft_container = data.get("force_torques", {})
+        # Support different key naming conventions from RepackTransform outputs.
+        if "left_ft" in ft_container:
+            left_source = ft_container.get("left_ft")
+        else:
+            left_source = ft_container.get("left")
+        if "right_ft" in ft_container:
+            right_source = ft_container.get("right_ft")
+        else:
+            right_source = ft_container.get("right")
+
+        left_ft = _prepare_ft(left_source)
+        right_ft = _prepare_ft(right_source)
 
         right_placeholder = np.zeros_like(base_img)
 

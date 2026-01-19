@@ -786,8 +786,8 @@ _CONFIGS = [
                                 "actions": "actions",
                                 "prompt": "prompt",
                                 "force_torques": {
-                                    "left": "left_ft",
-                                    "right": "right_ft",
+                                    "left_ft": "left_ft",
+                                    "right_ft": "right_ft",
                                 },
                             }
                         )
@@ -831,8 +831,8 @@ _CONFIGS = [
                                 "actions": "actions",
                                 "prompt": "prompt",
                                 "force_torques": {
-                                    "left": "left_ft",
-                                    "right": "right_ft",
+                                    "left_ft": "left_ft",
+                                    "right_ft": "right_ft",
                                 },
                             }
                         )
@@ -998,8 +998,8 @@ _CONFIGS = [
                                 "actions": "actions",
                                 "prompt": "prompt",
                                 "force_torques": {
-                                    "left": "left_ft",
-                                    "right": "right_ft",
+                                    "left_ft": "left_ft",
+                                    "right_ft": "right_ft",
                                 },
                             }
                         )
@@ -1047,8 +1047,8 @@ _CONFIGS = [
                                 "actions": "actions",
                                 "prompt": "prompt",
                                 "force_torques": {
-                                    "left": "left_ft",
-                                    "right": "right_ft",
+                                    "left_ft": "left_ft",
+                                    "right_ft": "right_ft",
                                 },
                             }
                         )
