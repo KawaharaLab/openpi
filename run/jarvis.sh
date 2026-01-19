@@ -4,7 +4,8 @@ set -euo pipefail
 cd /home/cloud/openpi
 source .venv/bin/activate
 
-export CUDA_VISIBLE_DEVICES=4,5,6,7 
+# export CUDA_VISIBLE_DEVICES=4,5,6,7 
+export FORCE_TORQUE_HORIZON=1
 
 # wandb: offline if no API key provided
 if [ -z "${WANDB_API_KEY:-}" ]; then
@@ -27,9 +28,9 @@ export MKL_NUM_THREADS=${MKL_NUM_THREADS:-8}
 torchrun \
     --standalone \
     --nnodes=1 \
-    --nproc_per_node="4" \
-    /home/cloud/openpi/scripts/train_pytorch.py pi0_ur3_robotiq \
-    --exp_name "jarvis_test" \
+    --nproc_per_node="8" \
+    /home/cloud/openpi/scripts/train_pytorch.py pi0_ur3_robotiq_ft \
+    --exp_name "jarvis_one" \
                 --batch_size 128 \
                         --num_workers 16 \
                 --no-pytorch-gradient-checkpointing \
