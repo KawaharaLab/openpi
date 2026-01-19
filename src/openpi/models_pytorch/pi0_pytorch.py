@@ -8,6 +8,7 @@ import torch.nn.functional as F  # noqa: N812
 
 import openpi.models.gemma as _gemma
 from openpi.models_pytorch.gemma_pytorch import PaliGemmaWithExpertModel
+from openpi.models_pytorch.patchTST import PatchTSTEncoder
 import openpi.models_pytorch.preprocessing_pytorch as _preprocessing
 import openpi.models.model_ft as _model_ft
 
@@ -99,21 +100,26 @@ class PI0Pytorch(nn.Module):
             precision=config.dtype,
         )
 
-        # Project per-axis force/torque time series with a small 1D-CNN (translation-friendly), per-sensor & per-axis params.
-        ft_hidden = 256
-        self.force_torque_axis_cnns = nn.ModuleDict(
+        # Force/torque encoder: PatchTST per sensor (shared across axes); output tokens flattened.
+        # Config must define ft_patch_len, ft_patch_stride, ft_num_patch, and ft_d_model (defaults to paligemma width).
+        self.ft_patch_len = getattr(config, "ft_patch_len", 20)
+        self.ft_patch_stride = getattr(config, "ft_patch_stride", self.ft_patch_len // 2)
+        self.ft_num_patch = getattr(config, "ft_num_patch", (_model_ft.FT_HORIZON - self.ft_patch_len) // self.ft_patch_stride + 1)
+        ft_d_model = getattr(config, "ft_d_model", paligemma_config.width)
+
+        self.force_torque_patch_encoders = nn.ModuleDict(
             {
-                sensor: nn.ModuleList(
-                    [
-                        nn.Sequential(
-                            nn.Conv1d(1, ft_hidden, kernel_size=5, padding=2),
-                            nn.SiLU(),
-                            nn.Conv1d(ft_hidden, paligemma_config.width, kernel_size=5, padding=2),
-                            nn.SiLU(),
-                            nn.AdaptiveAvgPool1d(1),
-                        )
-                        for _ in range(6)
-                    ]
+                sensor: PatchTSTEncoder(
+                    c_in=6,
+                    num_patch=self.ft_num_patch,
+                    patch_len=self.ft_patch_len,
+                    d_model=ft_d_model,
+                    n_heads=min(8, ft_d_model),
+                    d_ff=ft_d_model * 2,
+                    dropout=0.0,
+                    attn_dropout=0.0,
+                    shared_embedding=True,
+                    n_layers=3,
                 )
                 for sensor in ("left_ft", "right_ft")
             }
@@ -247,28 +253,35 @@ class PI0Pytorch(nn.Module):
                 if horizon != _model_ft.FT_HORIZON:
                     raise ValueError(f"Expected force/torque horizon {_model_ft.FT_HORIZON}, got {horizon}")
 
-                # Apply per-axis CNN for this sensor: each axis keeps its own parameters.
-                if key not in self.force_torque_axis_cnns:
-                    raise ValueError(f"Unexpected force/torque key '{key}', expected one of {list(self.force_torque_axis_cnns.keys())}")
+                # Apply PatchTST encoder per sensor, shared across axes. Expect shape (B, 6, ft_d_model, num_patch).
+                if key not in self.force_torque_patch_encoders:
+                    raise ValueError(
+                        f"Unexpected force/torque key '{key}', expected one of {list(self.force_torque_patch_encoders.keys())}"
+                    )
 
-                ft_axes = ft.transpose(1, 2)  # (B, 6, H)
-                axis_embs = []
-                for axis in range(6):
-                    axis_input = ft_axes[:, axis : axis + 1, :]  # (B, 1, H)
-                    axis_emb = self.force_torque_axis_cnns[key][axis](axis_input).squeeze(-1)  # (B, d)
-                    axis_embs.append(axis_emb[:, None, :])
+                # Create overlapping patches along time dimension -> (B, num_patch, patch_len, 6)
+                ft_patches = ft.unfold(dimension=1, size=self.ft_patch_len, step=self.ft_patch_stride)
+                if ft_patches.shape[1] != self.ft_num_patch:
+                    raise ValueError(
+                        f"Unexpected num_patch {ft_patches.shape[1]}, expected {self.ft_num_patch}; "
+                        "check ft_patch_len/ft_patch_stride"
+                    )
 
-                ft_emb = torch.cat(axis_embs, dim=1)  # (B, 6, d)
+                # PatchTST expects (B, num_patch, nvars, patch_len)
+                ft_patches = ft_patches.permute(0, 1, 3, 2)
+                ft_emb_4d = self.force_torque_patch_encoders[key](ft_patches)
+                # (B, 6, d_model, num_patch) -> (B, 6 * num_patch, d_model)
+                ft_emb = ft_emb_4d.permute(0, 1, 3, 2).reshape(bsize, 6 * self.ft_num_patch, ft_emb_4d.shape[2])
                 embs.append(ft_emb)
 
                 sensor_mask = force_torque_masks.get(key)
                 if sensor_mask is None:
                     sensor_mask = torch.ones(bsize, dtype=torch.bool, device=ft.device)
                 sensor_mask = sensor_mask.to(dtype=torch.bool, device=ft.device)
-                sensor_mask = sensor_mask[:, None].expand(bsize, 6)
+                sensor_mask = sensor_mask[:, None].expand(bsize, ft_emb.shape[1])
                 pad_masks.append(sensor_mask)
 
-                att_masks += [0] * 6
+                att_masks += [0] * ft_emb.shape[1]
 
         # Process language tokens
         def lang_embed_func(lang_tokens):
