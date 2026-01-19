@@ -2,6 +2,7 @@ import logging
 import math
 
 import torch
+import torch.distributed as dist
 from torch import Tensor
 from torch import nn
 import torch.nn.functional as F  # noqa: N812
@@ -139,6 +140,10 @@ class PI0Pytorch(nn.Module):
         # Initialize gradient checkpointing flag
         self.gradient_checkpointing_enabled = False
 
+        # One-time debug logs for force/torque inputs and embeddings
+        self._logged_ft_batch = False
+        self._logged_ft_embeds = False
+
         msg = "transformers_replace is not installed correctly. Please install it with `uv pip install transformers==4.53.2` and `cp -r ./src/openpi/models_pytorch/transformers_replace/* .venv/lib/python3.11/site-packages/transformers/`."
         try:
             from transformers.models.siglip import check
@@ -178,6 +183,10 @@ class PI0Pytorch(nn.Module):
             )
         return func(*args, **kwargs)
 
+    def _is_main_process(self) -> bool:
+        """Return True on rank 0 (or when DDP is not initialized)."""
+        return (not dist.is_initialized()) or dist.get_rank() == 0
+
     def _prepare_attention_masks_4d(self, att_2d_masks):
         """Helper method to prepare 4D attention masks for transformer."""
         att_2d_masks_4d = att_2d_masks[:, None, :, :]
@@ -186,6 +195,26 @@ class PI0Pytorch(nn.Module):
     def _preprocess_observation(self, observation, *, train=True):
         """Helper method to preprocess observation."""
         observation = _preprocessing.preprocess_observation_pytorch(observation, train=train)
+
+        # Log a single sample of raw force/torque stats to verify signals are present.
+        if self._is_main_process() and not self._logged_ft_batch:
+            self._logged_ft_batch = True
+            try:
+                ft_info = []
+                for key, ft in getattr(observation, "force_torques", {}).items():
+                    if ft is None:
+                        ft_info.append(f"{key}: none")
+                        continue
+                    ft = ft.detach()
+                    stats = (ft.shape, ft.amin().item(), ft.amax().item(), ft.mean().item(), ft.std().item())
+                    mask = getattr(observation, "force_torque_masks", {}).get(key)
+                    mask_mean = mask.float().mean().item() if mask is not None else None
+                    ft_info.append(
+                        f"{key}: shape={stats[0]} min={stats[1]:.3f} max={stats[2]:.3f} mean={stats[3]:.3f} std={stats[4]:.3f} mask_mean={mask_mean}"
+                    )
+                logging.info("Force/torque batch stats: %s", "; ".join(ft_info) if ft_info else "<none>")
+            except Exception as exc:  # pragma: no cover - best-effort debug logging
+                logging.warning("Failed to log force/torque batch stats: %s", exc)
         return (
             list(observation.images.values()),
             list(observation.image_masks.values()),
@@ -272,6 +301,23 @@ class PI0Pytorch(nn.Module):
                 L_out = ft_emb.shape[1] // 6
                 sensor_mask = sensor_mask[:, None, None].expand(bsize, 6, L_out).reshape(bsize, 6 * L_out)
                 pad_masks.append(sensor_mask)
+
+                if self._is_main_process() and not self._logged_ft_embeds:
+                    self._logged_ft_embeds = True
+                    try:
+                        ft_mean = ft_emb.detach().mean().item()
+                        ft_std = ft_emb.detach().std().item()
+                        pad_ratio = sensor_mask.float().mean().item()
+                        logging.info(
+                            "Force/torque embed stats [%s]: shape=%s mean=%.4f std=%.4f mask_mean=%.3f",
+                            key,
+                            tuple(ft_emb.shape),
+                            ft_mean,
+                            ft_std,
+                            pad_ratio,
+                        )
+                    except Exception as exc:  # pragma: no cover - best-effort debug logging
+                        logging.warning("Failed to log force/torque embed stats: %s", exc)
 
                 att_masks += [0] * (6 * L_out)
 

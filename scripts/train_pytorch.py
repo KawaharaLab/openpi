@@ -26,6 +26,7 @@ Multi-Node Training:
 import dataclasses
 import gc
 import logging
+import math
 import os
 import platform
 import socket
@@ -532,6 +533,42 @@ def train_loop(config: _config.TrainConfig):
 
         wandb.log({"camera_views": images_to_log}, step=0)
 
+        # Log sample force/torque heads as raw numbers (first item in batch)
+        ft_tables: dict[str, object] = {}
+        force_torques = getattr(observation, "force_torques", {}) if hasattr(observation, "force_torques") else {}
+        force_torque_masks = (
+            getattr(observation, "force_torque_masks", {}) if hasattr(observation, "force_torque_masks") else {}
+        )
+        print(force_torques.keys())
+        print(observation)
+        for key, ft in force_torques.items():
+            if ft is None:
+                print(f"Force/torque key {key} is None, skipping logging.")
+                continue
+            ft0 = ft[0].detach().cpu()
+            max_rows = min(16, ft0.shape[0])  # show a small head only
+            table = wandb.Table(columns=["t", "fx", "fy", "fz", "tx", "ty", "tz"])
+            for t in range(max_rows):
+                row = [t] + [float(x) for x in ft0[t].tolist()]
+                table.add_data(*row)
+            ft_tables[f"ft_sample/{key}"] = table
+            print(f"Force/torque sample for key {key}: min={ft0.min().item()} max={ft0.max().item()} mean={ft0.mean().item()}")
+
+            mask = force_torque_masks.get(key)
+            if mask is not None:
+                mask0 = mask[0].detach().cpu().view(-1)
+                mask_rows = min(max_rows, mask0.shape[0])
+                mask_table = wandb.Table(columns=["t", "mask"])
+                for t in range(mask_rows):
+                    mask_table.add_data(t, int(mask0[t].item()))
+                ft_tables[f"ft_sample/{key}_mask"] = mask_table
+                ft_tables[f"ft_sample/{key}_mask_mean"] = float(mask0.float().mean().item())
+                print(f"Force/torque mask sample for key {key}: mean={mask0.float().mean().item()}")
+
+
+        if ft_tables:
+            wandb.log(ft_tables, step=0)
+
         # Clear sample batch from memory aggressively
         del sample_batch, observation, actions, images_to_log, img_concatenated
         del sample_data_loader  # Also delete the sample data loader
@@ -726,6 +763,54 @@ def train_loop(config: _config.TrainConfig):
         )
         _log_trainable_mask(stage or ("freeze_active_true" if freeze_active else "freeze_active_false"))
 
+    def _group_grad_norm(prefixes: tuple[str, ...]) -> float | None:
+        """Compute L2 grad norm for parameter groups with a given prefix."""
+        base_model = model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model
+        sq_sum = 0.0
+        found = False
+        for name, param in base_model.named_parameters():
+            if not any(name.startswith(p) for p in prefixes):
+                continue
+            if param.grad is None:
+                continue
+            grad = param.grad.detach()
+            sq_sum += grad.pow(2).sum().item()
+            found = True
+        return math.sqrt(sq_sum) if found else None
+
+    def _log_force_torque_batch(observation, step: int):
+        """Log per-batch force/torque stats to catch missing signals or masks."""
+        rank = dist.get_rank() if dist.is_initialized() else 0
+        force_torques = getattr(observation, "force_torques", {}) if hasattr(observation, "force_torques") else {}
+        force_torque_masks = getattr(observation, "force_torque_masks", {}) if hasattr(observation, "force_torque_masks") else {}
+
+        if not force_torques:
+            logging.info("[rank=%s step=%s] Force/torque batch stats: <none>", rank, step)
+            return
+
+        ft_info = []
+        for key, ft in force_torques.items():
+            if ft is None:
+                ft_info.append(f"{key}: none")
+                continue
+            try:
+                ft_det = ft.detach()
+                stats = (
+                    tuple(ft_det.shape),
+                    ft_det.amin().item(),
+                    ft_det.amax().item(),
+                    ft_det.mean().item(),
+                    ft_det.std().item(),
+                )
+                mask = force_torque_masks.get(key)
+                mask_mean = mask.float().mean().item() if mask is not None else None
+                ft_info.append(
+                    f"{key}: shape={stats[0]} min={stats[1]:.3f} max={stats[2]:.3f} mean={stats[3]:.3f} std={stats[4]:.3f} mask_mean={mask_mean}"
+                )
+            except Exception as exc:  # pragma: no cover - best-effort debug logging
+                ft_info.append(f"{key}: failed_to_log ({exc})")
+        logging.info("[rank=%s step=%s] Force/torque batch stats: %s", rank, step, "; ".join(ft_info))
+
     # Optimizer + learning rate schedule from config
     warmup_steps = config.lr_schedule.warmup_steps
     peak_lr = config.lr_schedule.peak_lr
@@ -783,6 +868,16 @@ def train_loop(config: _config.TrainConfig):
     model.train()
     start_time = time.time()
     infos = []  # Collect stats over log interval
+    ft_grad_prefixes = ("force_torque_axis_cnns",)
+    action_head_grad_prefixes = (
+        "action_in_proj",
+        "action_out_proj",
+        "state_proj",
+        "time_mlp_in",
+        "time_mlp_out",
+        "action_time_mlp_in",
+        "action_time_mlp_out",
+    )
     if is_main:
         logging.info(
             f"Running on: {platform.node()} | world_size={torch.distributed.get_world_size() if use_ddp else 1}"
@@ -857,6 +952,10 @@ def train_loop(config: _config.TrainConfig):
             actions = actions.to(torch.float32)  # noqa: PLW2901
             actions = actions.to(device)  # noqa: PLW2901
 
+            # Force/torque stats each log interval (all ranks; repeated logs are acceptable)
+            if global_step % config.log_interval == 0:
+                _log_force_torque_batch(observation, global_step)
+
             # Update LR
             for pg in optim.param_groups:
                 pg["lr"] = lr_schedule(global_step)
@@ -915,10 +1014,22 @@ def train_loop(config: _config.TrainConfig):
                     ]
                     if len(vals) > 0:
                         avg_grad_norm = sum(vals) / len(vals)
+
+                # Grouped grad norms for force/torque encoders and action heads
+                ft_grad_norm = _group_grad_norm(ft_grad_prefixes)
+                action_head_grad_norm = _group_grad_norm(action_head_grad_prefixes)
+
+                grad_parts = []
+                if avg_grad_norm is not None:
+                    grad_parts.append(f"grad_norm={avg_grad_norm:.2f}")
+                if ft_grad_norm is not None:
+                    grad_parts.append(f"ft_grad_norm={ft_grad_norm:.2e}")
+                if action_head_grad_norm is not None:
+                    grad_parts.append(f"action_head_grad_norm={action_head_grad_norm:.2e}")
+                grad_text = " " + " ".join(grad_parts) if grad_parts else ""
+
                 logging.info(
-                    f"step={global_step} loss={avg_loss:.4f} lr={avg_lr:.2e} grad_norm={avg_grad_norm:.2f} time={elapsed:.1f}s"
-                    if avg_grad_norm is not None
-                    else f"step={global_step} loss={avg_loss:.4f} lr={avg_lr:.2e} time={elapsed:.1f}s"
+                    f"step={global_step} loss={avg_loss:.4f} lr={avg_lr:.2e}{grad_text} time={elapsed:.1f}s"
                 )
 
                 # Log to wandb
@@ -931,6 +1042,10 @@ def train_loop(config: _config.TrainConfig):
                     }
                     if avg_grad_norm is not None:
                         log_payload["grad_norm"] = avg_grad_norm
+                    if ft_grad_norm is not None:
+                        log_payload["ft_grad_norm"] = ft_grad_norm
+                    if action_head_grad_norm is not None:
+                        log_payload["action_head_grad_norm"] = action_head_grad_norm
                     wandb.log(log_payload, step=global_step)
 
                 # Run a quick val step and log

@@ -34,7 +34,7 @@ torchrun \
                 --batch_size 128 \
                         --num_workers 16 \
                 --no-pytorch-gradient-checkpointing \
-                        --freeze_pretrained_steps 0 \
+                        --freeze_pretrained_steps 10000 \
                         --num_train_steps 40000 \
                 --save_interval 10000 \
                 --pytorch_weight_path "/home/cloud/model/pi0_base_pytorch/"

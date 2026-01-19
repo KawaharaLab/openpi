@@ -803,7 +803,7 @@ _CONFIGS = [
             action_expert_variant="gemma_300m",
         ),
         num_train_steps=10000,
-        log_interval=150,
+        log_interval=50,
         save_interval=5000,
         pytorch_weight_path="/home/cloud/model/pi0_base_pytorch/",
         freeze_pretrained_steps=1000,
