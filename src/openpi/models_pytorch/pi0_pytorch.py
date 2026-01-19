@@ -101,16 +101,19 @@ class PI0Pytorch(nn.Module):
 
         # Project per-axis force/torque time series with a small 1D-CNN (translation-friendly), per-sensor & per-axis params.
         ft_hidden = 256
+        k = 11
+        pad = (k - 1) // 2
         self.force_torque_axis_cnns = nn.ModuleDict(
             {
                 sensor: nn.ModuleList(
                     [
                         nn.Sequential(
-                            nn.Conv1d(1, ft_hidden, kernel_size=5, padding=2),
+                            nn.ReplicationPad1d(pad),
+                            nn.Conv1d(1, ft_hidden, kernel_size=k, padding=0, stride=4),
                             nn.SiLU(),
-                            nn.Conv1d(ft_hidden, paligemma_config.width, kernel_size=5, padding=2),
+                            nn.ReplicationPad1d(pad),
+                            nn.Conv1d(ft_hidden, paligemma_config.width, kernel_size=k, padding=0, stride=4),
                             nn.SiLU(),
-                            nn.AdaptiveAvgPool1d(1),
                         )
                         for _ in range(6)
                     ]
@@ -255,20 +258,22 @@ class PI0Pytorch(nn.Module):
                 axis_embs = []
                 for axis in range(6):
                     axis_input = ft_axes[:, axis : axis + 1, :]  # (B, 1, H)
-                    axis_emb = self.force_torque_axis_cnns[key][axis](axis_input).squeeze(-1)  # (B, d)
-                    axis_embs.append(axis_emb[:, None, :])
+                    axis_out = self.force_torque_axis_cnns[key][axis](axis_input)  # (B, d, L_out)
+                    axis_out = axis_out.permute(0, 2, 1)  # (B, L_out, d)
+                    axis_embs.append(axis_out)
 
-                ft_emb = torch.cat(axis_embs, dim=1)  # (B, 6, d)
+                ft_emb = torch.cat(axis_embs, dim=1)  # (B, 6 * L_out, d)
                 embs.append(ft_emb)
 
                 sensor_mask = force_torque_masks.get(key)
                 if sensor_mask is None:
                     sensor_mask = torch.ones(bsize, dtype=torch.bool, device=ft.device)
                 sensor_mask = sensor_mask.to(dtype=torch.bool, device=ft.device)
-                sensor_mask = sensor_mask[:, None].expand(bsize, 6)
+                L_out = ft_emb.shape[1] // 6
+                sensor_mask = sensor_mask[:, None, None].expand(bsize, 6, L_out).reshape(bsize, 6 * L_out)
                 pad_masks.append(sensor_mask)
 
-                att_masks += [0] * 6
+                att_masks += [0] * (6 * L_out)
 
         # Process language tokens
         def lang_embed_func(lang_tokens):
