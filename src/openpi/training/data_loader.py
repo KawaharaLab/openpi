@@ -14,6 +14,7 @@ import numpy as np
 import torch
 
 import openpi.models.model as _model
+import openpi.models.model_ft as _model_ft
 import openpi.training.config as _config
 from openpi.training.droid_rlds_dataset import DroidRldsDataset
 import openpi.transforms as _transforms
@@ -577,4 +578,10 @@ class DataLoaderImpl(DataLoader):
 
     def __iter__(self):
         for batch in self._data_loader:
-            yield _model.Observation.from_dict(batch), batch["actions"]
+            # If the batch contains force/torque data, use the FT-aware Observation
+            # otherwise fall back to the standard Observation.
+            if "force_torques" in batch:
+                obs = _model_ft.Observation.from_dict(batch)
+            else:
+                obs = _model.Observation.from_dict(batch)
+            yield obs, batch["actions"]

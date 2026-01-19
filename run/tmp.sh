@@ -1,6 +1,6 @@
 #!/bin/bash
 #PBS -q debug-g
-#PBS -l select=4:ncpus=72:mpiprocs=1
+#PBS -l select=2:ncpus=72:mpiprocs=1
 #PBS -W group_list=gr41
 #PBS -j oe
 
@@ -64,7 +64,7 @@ mpiexec -np ${NNODES} --map-by ppr:1:node:PE=${OMP_NUM_THREADS} --bind-to core -
         --batch_size 128 \
             --num_workers 16 \
         --no-pytorch-gradient-checkpointing \
-            --freeze_pretrained_steps 0 \
-            --num_train_steps 200 \
+            --freeze_pretrained_steps 10000 \
+            --num_train_steps 40000 \
         --save_interval 10000
   "

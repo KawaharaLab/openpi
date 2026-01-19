@@ -679,7 +679,7 @@ def train_loop(config: _config.TrainConfig):
 
     def _apply_trainable_mask(freeze_active: bool, *, stage: str | None = None):
         base_model = model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model
-        action_roots = {"action_in_proj", "action_out_proj", "state_proj", "force_torque_axis_cnns"}
+        action_roots = {"action_in_proj", "action_out_proj", "state_proj", "force_torque_axis_cnns", "force_torque_patch_encoders"}
 
         # Identify LoRA param names even if the raw name does not contain "lora_".
         lora_param_names: set[str] = set()
