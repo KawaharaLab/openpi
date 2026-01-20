@@ -14,7 +14,7 @@ import torch
 from typing_extensions import override
 
 from openpi import transforms as _transforms
-from openpi.models import model as _model
+from openpi.models import model_ft as _model_ft
 from openpi.shared import array_typing as at
 from openpi.shared import nnx_utils
 
@@ -24,7 +24,7 @@ BasePolicy: TypeAlias = _base_policy.BasePolicy
 class Policy(BasePolicy):
     def __init__(
         self,
-        model: _model.BaseModel,
+        model: _model_ft.BaseModel,
         *,
         rng: at.KeyArrayLike | None = None,
         transforms: Sequence[_transforms.DataTransformFn] = (),
@@ -91,7 +91,7 @@ class Policy(BasePolicy):
                 noise = noise[None, ...]  # Make it (1, action_horizon, action_dim)
             sample_kwargs["noise"] = noise
 
-        observation = _model.Observation.from_dict(inputs)
+        observation = _model_ft.Observation.from_dict(inputs)
         start_time = time.monotonic()
         outputs = {
             "state": inputs["state"],

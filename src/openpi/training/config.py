@@ -803,9 +803,9 @@ _CONFIGS = [
             action_expert_variant="gemma_300m",
         ),
         num_train_steps=10000,
-        log_interval=50,
+        log_interval=150,
         save_interval=5000,
-        pytorch_weight_path="/home/cloud/model/pi0_base_pytorch/",
+        pytorch_weight_path="/work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi0_base_pytorch/",
         freeze_pretrained_steps=1000,
         # batch_size=128,
         data=SimpleDataConfig(
@@ -817,7 +817,7 @@ _CONFIGS = [
             ),
             base_config=DataConfig(
                 prompt_from_task=True,
-                local_repo_path="/home/cloud/data/lan_ur3_lerobot_forward",
+                local_repo_path="/work/gr41/r41000/data/lan_ur3_lerobot_forward",
                 action_sequence_keys=(),
                 repack_transforms=_transforms.Group(
                     inputs=[
