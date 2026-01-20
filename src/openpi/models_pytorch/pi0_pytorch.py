@@ -100,24 +100,12 @@ class PI0Pytorch(nn.Module):
             precision=config.dtype,
         )
 
-        # Project per-axis force/torque time series with a small 1D-CNN (translation-friendly), per-sensor & per-axis params.
-        ft_hidden = 256
-        k = 11
-        pad = (k - 1) // 2
-        self.force_torque_axis_cnns = nn.ModuleDict(
+        # Project force/torque (6-dim at single timestep) to a single token per sensor using an MLP.
+        # Assumes sequence length (horizon) == 1 for force/torque inputs.
+        self.force_torque_proj = nn.ModuleDict(
             {
-                sensor: nn.ModuleList(
-                    [
-                        nn.Sequential(
-                            nn.ReplicationPad1d(pad),
-                            nn.Conv1d(1, ft_hidden, kernel_size=k, padding=0, stride=4),
-                            nn.SiLU(),
-                            nn.ReplicationPad1d(pad),
-                            nn.Conv1d(ft_hidden, paligemma_config.width, kernel_size=k, padding=0, stride=4),
-                            nn.SiLU(),
-                        )
-                        for _ in range(6)
-                    ]
+                sensor: nn.Sequential(
+                    nn.Linear(6, paligemma_config.width),
                 )
                 for sensor in ("left_ft", "right_ft")
             }
@@ -276,31 +264,23 @@ class PI0Pytorch(nn.Module):
                 bsize, horizon, channels = ft.shape
                 if channels != 6:
                     raise ValueError(f"Expected force/torque tensor with 6 channels, got {channels}")
-                if horizon != _model_ft.FT_HORIZON:
-                    raise ValueError(f"Expected force/torque horizon {_model_ft.FT_HORIZON}, got {horizon}")
+                if horizon != 1:
+                    raise ValueError(f"Expected force/torque horizon 1, got {horizon}")
 
-                # Apply per-axis CNN for this sensor: each axis keeps its own parameters.
-                if key not in self.force_torque_axis_cnns:
-                    raise ValueError(f"Unexpected force/torque key '{key}', expected one of {list(self.force_torque_axis_cnns.keys())}")
+                if key not in self.force_torque_proj:
+                    raise ValueError(f"Unexpected force/torque key '{key}', expected one of {list(self.force_torque_proj.keys())}")
 
-                ft_axes = ft.transpose(1, 2)  # (B, 6, H)
-                axis_embs = []
-                for axis in range(6):
-                    axis_input = ft_axes[:, axis : axis + 1, :]  # (B, 1, H)
-                    axis_out = self.force_torque_axis_cnns[key][axis](axis_input)  # (B, d, L_out)
-                    axis_out = axis_out.permute(0, 2, 1)  # (B, L_out, d)
-                    axis_embs.append(axis_out)
-
-                ft_emb = torch.cat(axis_embs, dim=1)  # (B, 6 * L_out, d)
+                # ft: (B, 1, 6) -> (B, 6)
+                ft_squeezed = ft.reshape(bsize, horizon, channels)[:, 0, :]
+                ft_emb = self.force_torque_proj[key](ft_squeezed)  # (B, width)
+                ft_emb = ft_emb[:, None, :]  # (B, 1, width)
                 embs.append(ft_emb)
 
                 sensor_mask = force_torque_masks.get(key)
                 if sensor_mask is None:
                     sensor_mask = torch.ones(bsize, dtype=torch.bool, device=ft.device)
                 sensor_mask = sensor_mask.to(dtype=torch.bool, device=ft.device)
-                L_out = ft_emb.shape[1] // 6
-                sensor_mask = sensor_mask[:, None, None].expand(bsize, 6, L_out).reshape(bsize, 6 * L_out)
-                pad_masks.append(sensor_mask)
+                pad_masks.append(sensor_mask[:, None])
 
                 if self._is_main_process() and not self._logged_ft_embeds:
                     self._logged_ft_embeds = True
@@ -319,7 +299,7 @@ class PI0Pytorch(nn.Module):
                     except Exception as exc:  # pragma: no cover - best-effort debug logging
                         logging.warning("Failed to log force/torque embed stats: %s", exc)
 
-                att_masks += [0] * (6 * L_out)
+                att_masks += [0]
 
         # Process language tokens
         def lang_embed_func(lang_tokens):
