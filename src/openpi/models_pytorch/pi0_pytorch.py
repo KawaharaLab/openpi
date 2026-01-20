@@ -267,9 +267,22 @@ class PI0Pytorch(nn.Module):
                         "check ft_patch_len/ft_patch_stride"
                     )
 
-                # PatchTST expects (B, num_patch, nvars, patch_len)
-                ft_patches = ft_patches.permute(0, 1, 3, 2)
-                ft_emb_4d = self.force_torque_patch_encoders[key](ft_patches)
+                # Ensure ft_patches is shaped (B, num_patch, nvars, patch_len)
+                # Different torch versions/patterns may produce either
+                #   (B, num_patch, patch_len, C)  or  (B, num_patch, C, patch_len)
+                # after unfold, so handle both cases robustly.
+                if ft_patches.shape[-1] == self.ft_patch_len:
+                    # already (B, num_patch, nvars, patch_len)
+                    normalized_ft_patches = ft_patches
+                elif ft_patches.shape[-2] == self.ft_patch_len:
+                    # (B, num_patch, patch_len, nvars) -> permute
+                    normalized_ft_patches = ft_patches.permute(0, 1, 3, 2)
+                else:
+                    raise ValueError(
+                        f"Unexpected ft_patches layout {ft_patches.shape}; expected patch_len={self.ft_patch_len} in one of the last two dims"
+                    )
+
+                ft_emb_4d = self.force_torque_patch_encoders[key](normalized_ft_patches)
                 # (B, 6, d_model, num_patch) -> (B, 6 * num_patch, d_model)
                 ft_emb = ft_emb_4d.permute(0, 1, 3, 2).reshape(bsize, 6 * self.ft_num_patch, ft_emb_4d.shape[2])
                 embs.append(ft_emb)

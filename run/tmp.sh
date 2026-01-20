@@ -1,6 +1,6 @@
 #!/bin/bash
 #PBS -q debug-g
-#PBS -l select=2:ncpus=72:mpiprocs=1
+#PBS -l select=8:ncpus=72:mpiprocs=1
 #PBS -W group_list=gr41
 #PBS -j oe
 
