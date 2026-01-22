@@ -100,9 +100,9 @@ class PI0Pytorch(nn.Module):
             precision=config.dtype,
         )
 
-        # Project per-axis force/torque time series with a small 1D-CNN (translation-friendly), per-sensor & per-axis params.
+        # Project per-axis force/torque time series with per-sensor & per-axis params.
         ft_hidden = 256
-        k = 11
+        k = 21
         pad = (k - 1) // 2
         self.force_torque_axis_cnns = nn.ModuleDict(
             {
@@ -110,10 +110,10 @@ class PI0Pytorch(nn.Module):
                     [
                         nn.Sequential(
                             nn.ReplicationPad1d(pad),
-                            nn.Conv1d(1, ft_hidden, kernel_size=k, padding=0, stride=4),
+                            nn.Conv1d(1, ft_hidden, kernel_size=k, padding=0, stride=10),
                             nn.SiLU(),
-                            nn.ReplicationPad1d(pad),
-                            nn.Conv1d(ft_hidden, paligemma_config.width, kernel_size=k, padding=0, stride=4),
+                            nn.ReplicationPad1d(2),
+                            nn.Conv1d(ft_hidden, paligemma_config.width, kernel_size=5, padding=0, stride=4),
                             nn.SiLU(),
                         )
                         for _ in range(6)
@@ -298,7 +298,7 @@ class PI0Pytorch(nn.Module):
                 if sensor_mask is None:
                     sensor_mask = torch.ones(bsize, dtype=torch.bool, device=ft.device)
                 sensor_mask = sensor_mask.to(dtype=torch.bool, device=ft.device)
-                L_out = ft_emb.shape[1] // 6
+                L_out = axis_embs[0].shape[1]
                 sensor_mask = sensor_mask[:, None, None].expand(bsize, 6, L_out).reshape(bsize, 6 * L_out)
                 pad_masks.append(sensor_mask)
 

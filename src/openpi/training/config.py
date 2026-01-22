@@ -508,6 +508,14 @@ class TrainConfig:
     # Alternatively, freeze for a fixed number of steps (overrides freeze_pretrained_fraction when > 0).
     freeze_pretrained_steps: int = 0
 
+    # Force/torque staged training schedule (PyTorch only):
+    #  1) train FT CNN only for `ft_cnn_warmup_steps`
+    #  2) train FT CNN + action head for the next `ft_cnn_head_steps`
+    #  3) then freeze FT CNN and train the rest
+    # Set both to 0 to disable and fall back to legacy freeze schedule.
+    ft_cnn_warmup_steps: int = 0
+    ft_cnn_head_steps: int = 0
+    ft_mask: bool = False
     # Precision for PyTorch training.
     pytorch_training_precision: Literal["bfloat16", "float32"] = "bfloat16"
 
@@ -805,7 +813,7 @@ _CONFIGS = [
         num_train_steps=10000,
         log_interval=150,
         save_interval=5000,
-        pytorch_weight_path="/home/cloud/model/pi0_base_pytorch/",
+        pytorch_weight_path="/work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi0_base_pytorch/",
         freeze_pretrained_steps=1000,
         # batch_size=128,
         data=SimpleDataConfig(
@@ -817,7 +825,7 @@ _CONFIGS = [
             ),
             base_config=DataConfig(
                 prompt_from_task=True,
-                local_repo_path="/home/cloud/data/lan_ur3_lerobot_forward",
+                local_repo_path="/work/gr41/r41000/data/lan_ur3_lerobot_forward",
                 action_sequence_keys=(),
                 repack_transforms=_transforms.Group(
                     inputs=[

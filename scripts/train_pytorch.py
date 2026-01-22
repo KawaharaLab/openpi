@@ -656,17 +656,32 @@ def train_loop(config: _config.TrainConfig):
                 lora_enabled,
             )
 
+    # Compute optional FT staged schedule (overrides legacy freeze when enabled).
+    # If user provides values, use them. Otherwise, force defaults (3000, 10000)
+    # and ignore legacy freeze settings.
+    ft_phase1_steps = getattr(config, "ft_cnn_warmup_steps", 0) or 0
+    ft_phase2_steps = getattr(config, "ft_cnn_head_steps", 0) or 0
+    if ft_phase1_steps == 0 and ft_phase2_steps == 0:
+        ft_phase1_steps = 3000
+        ft_phase2_steps = 10000
+    ft_schedule_enabled = (ft_phase1_steps > 0) or (ft_phase2_steps > 0)
+    ft_phase1_end = ft_phase1_steps
+    ft_phase2_end = ft_phase1_steps + ft_phase2_steps
+
     # Compute optional freeze window; apply after we know the resume step.
     freeze_steps_total = 0
-    explicit_steps = getattr(config, "freeze_pretrained_steps", 0) or 0
-    if explicit_steps > 0:
-        freeze_steps_total = min(explicit_steps, max(1, config.num_train_steps))
-    elif getattr(config, "reinit_action_expert", False):
-        # Preserve the legacy fraction behavior only when explicitly reinitializing the expert.
-        fraction = getattr(config, "freeze_pretrained_fraction", 0.0) or 0.0
-        if fraction > 0:
-            freeze_steps_total = max(1, int(config.num_train_steps * fraction))
-            freeze_steps_total = min(freeze_steps_total, max(1, config.num_train_steps // 2))
+    explicit_steps = 0
+    # explicit_steps = getattr(config, "freeze_pretrained_steps", 0) or 0
+    # When FT schedule is enabled (always, due to defaults above), we intentionally ignore legacy freeze.
+    if not ft_schedule_enabled:
+        if explicit_steps > 0:
+            freeze_steps_total = min(explicit_steps, max(1, config.num_train_steps))
+        elif getattr(config, "reinit_action_expert", False):
+            # Preserve the legacy fraction behavior only when explicitly reinitializing the expert.
+            fraction = getattr(config, "freeze_pretrained_fraction", 0.0) or 0.0
+            if fraction > 0:
+                freeze_steps_total = max(1, int(config.num_train_steps * fraction))
+                freeze_steps_total = min(freeze_steps_total, max(1, config.num_train_steps // 2))
 
     def _log_trainable_mask(stage: str):
         base_model = model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model
@@ -677,9 +692,21 @@ def train_loop(config: _config.TrainConfig):
         logging.info("[%s] trainable (%s): %s", stage, len(trainable), trainable)
         logging.info("[%s] frozen (%s): %s", stage, len(frozen), frozen)
 
-    def _apply_trainable_mask(freeze_active: bool, *, stage: str | None = None):
+    def _apply_trainable_mask(
+        freeze_active: bool,
+        *,
+        stage: str | None = None,
+        ft_phase: str | None = None,
+    ):
         base_model = model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model
-        action_roots = {"action_in_proj", "action_out_proj", "state_proj", "force_torque_axis_cnns", "force_torque_patch_encoders"}
+        action_roots = {
+            "action_in_proj",
+            "action_out_proj",
+            "state_proj",
+            "force_torque_axis_cnns",
+            "force_torque_patch_encoders",
+            "force_torque_cnns",
+        }
 
         # Identify LoRA param names even if the raw name does not contain "lora_".
         lora_param_names: set[str] = set()
@@ -691,28 +718,38 @@ def train_loop(config: _config.TrainConfig):
 
         trainable_params = frozen_params = 0
         for name, param in base_model.named_parameters():
-            # Always train action/FT heads
             root = name.split(".")[0]
-            if root in action_roots:
-                train = True
-            elif ".gemma_expert." in name:
-                if getattr(config, "reinit_action_expert", False):
-                    # Reinitialized expert trains immediately.
-                    train = True
-                elif expert_lora_enabled:
-                    # Expert with LoRA: freeze base, train LoRA after freeze window.
-                    train = (name in lora_param_names) and (not freeze_active)
-                else:
-                    # Expert without LoRA: train after freeze window.
-                    train = not freeze_active
+            is_ft = root in {"force_torque_cnns", "force_torque_axis_cnns", "force_torque_patch_encoders"}
+            is_action_head = root in {"action_in_proj", "action_out_proj", "state_proj"}
+
+            if ft_phase == "ft_cnn_only":
+                train = is_ft
+            elif ft_phase == "ft_cnn_plus_head":
+                train = is_ft or is_action_head
+            elif ft_phase == "ft_cnn_frozen_full":
+                train = not is_ft
             else:
-                # Paligemma (or other non-expert params)
-                if pal_lora_enabled:
-                    # Paligemma with LoRA: freeze base, train LoRA after freeze window.
-                    train = (name in lora_param_names) and (not freeze_active)
+                # Legacy / default behavior
+                if root in action_roots:
+                    train = True
+                elif ".gemma_expert." in name:
+                    if getattr(config, "reinit_action_expert", False):
+                        # Reinitialized expert trains immediately.
+                        train = True
+                    elif expert_lora_enabled:
+                        # Expert with LoRA: freeze base, train LoRA after freeze window.
+                        train = (name in lora_param_names) and (not freeze_active)
+                    else:
+                        # Expert without LoRA: train after freeze window.
+                        train = not freeze_active
                 else:
-                    # Paligemma without LoRA: train after freeze window.
-                    train = not freeze_active
+                    # Paligemma (or other non-expert params)
+                    if pal_lora_enabled:
+                        # Paligemma with LoRA: freeze base, train LoRA after freeze window.
+                        train = (name in lora_param_names) and (not freeze_active)
+                    else:
+                        # Paligemma without LoRA: train after freeze window.
+                        train = not freeze_active
             param.requires_grad = train
             if train:
                 trainable_params += 1
@@ -724,7 +761,17 @@ def train_loop(config: _config.TrainConfig):
             trainable_params,
             frozen_params,
         )
-        _log_trainable_mask(stage or ("freeze_active_true" if freeze_active else "freeze_active_false"))
+        _log_trainable_mask(stage or (ft_phase if ft_phase is not None else ("freeze_active_true" if freeze_active else "freeze_active_false")))
+
+    # FT phased schedule helper
+    def _ft_phase_for_step(step: int) -> str | None:
+        if not ft_schedule_enabled:
+            return None
+        if step < ft_phase1_end:
+            return "ft_cnn_only"
+        if step < ft_phase2_end:
+            return "ft_cnn_plus_head"
+        return "ft_cnn_frozen_full"
 
     # Optimizer + learning rate schedule from config
     warmup_steps = config.lr_schedule.warmup_steps
@@ -749,23 +796,34 @@ def train_loop(config: _config.TrainConfig):
 
     # Apply optional freeze after knowing starting step (handles resume correctly).
     freeze_steps_remaining = 0
-    if freeze_steps_total > 0:
-        if global_step >= freeze_steps_total:
-            _apply_trainable_mask(freeze_active=False, stage="initial_after_resume_past_freeze")
-            logging.info(
-                f"Skip freeze: resuming at step {global_step} which is past freeze window ({freeze_steps_total} steps)"
-            )
-        else:
-            freeze_steps_remaining = freeze_steps_total - global_step
-            _apply_trainable_mask(freeze_active=True, stage="initial_in_freeze_window")
-            logging.info(
-                f"Freezing pretrained weights for first {freeze_steps_total} steps (remaining from step {global_step}: {freeze_steps_remaining}); only scratch heads (action/FT, reinitialized expert) stay trainable"
-            )
-    else:
-        _apply_trainable_mask(freeze_active=False, stage="initial_no_freeze_window")
+    current_ft_phase = _ft_phase_for_step(global_step)
+    if ft_schedule_enabled:
+        _apply_trainable_mask(freeze_active=False, ft_phase=current_ft_phase, stage="initial_ft_phase")
         logging.info(
-            "No backbone freeze window; paligemma base stays frozen, action/FT/gemma_expert train, LoRA unfrozen."
+            "Using FT staged schedule: phase1(cnn-only)=%s, phase2(cnn+head)=%s, phase3(full-no-cnn)=rest (starting at step %s in phase %s)",
+            ft_phase1_steps,
+            ft_phase2_steps,
+            global_step,
+            current_ft_phase,
         )
+    else:
+        if freeze_steps_total > 0:
+            if global_step >= freeze_steps_total:
+                _apply_trainable_mask(freeze_active=False, stage="initial_after_resume_past_freeze")
+                logging.info(
+                    f"Skip freeze: resuming at step {global_step} which is past freeze window ({freeze_steps_total} steps)"
+                )
+            else:
+                freeze_steps_remaining = freeze_steps_total - global_step
+                _apply_trainable_mask(freeze_active=True, stage="initial_in_freeze_window")
+                logging.info(
+                    f"Freezing pretrained weights for first {freeze_steps_total} steps (remaining from step {global_step}: {freeze_steps_remaining}); only scratch heads (action/FT, reinitialized expert) stay trainable"
+                )
+        else:
+            _apply_trainable_mask(freeze_active=False, stage="initial_no_freeze_window")
+            logging.info(
+                "No backbone freeze window; paligemma base stays frozen, action/FT/gemma_expert train, LoRA unfrozen."
+            )
 
     if is_main:
         _log_lora_modules("after_mask_application")
@@ -842,8 +900,16 @@ def train_loop(config: _config.TrainConfig):
             if global_step >= config.num_train_steps:
                 break
 
-            # Unfreeze LoRA after the freeze window; paligemma base stays frozen, action/FT/gemma_expert remain trainable.
-            if freeze_steps_remaining > 0 and global_step >= freeze_steps_total:
+            # Handle FT staged phase transitions or legacy freeze window.
+            if ft_schedule_enabled:
+                new_phase = _ft_phase_for_step(global_step)
+                if new_phase != current_ft_phase:
+                    current_ft_phase = new_phase
+                    _apply_trainable_mask(freeze_active=False, ft_phase=current_ft_phase, stage=f"ft_phase_{current_ft_phase}")
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                    logging.info("Switched FT phase to %s at step %s", current_ft_phase, global_step)
+            elif freeze_steps_remaining > 0 and global_step >= freeze_steps_total:
                 _apply_trainable_mask(freeze_active=False, stage="unfreeze_exit_freeze_window")
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()

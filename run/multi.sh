@@ -67,5 +67,6 @@ mpiexec -np ${NNODES} --map-by ppr:1:node:PE=${OMP_NUM_THREADS} --bind-to core -
         --no-pytorch-gradient-checkpointing \
             --freeze_pretrained_steps 10000 \
             --num_train_steps 40000 \
-        --save_interval 10000
+        --save_interval 10000 \
+        --ft_mask 
   "
