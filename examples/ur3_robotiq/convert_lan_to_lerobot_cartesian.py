@@ -53,7 +53,7 @@ import tyro
 
 GRIPPER_ACTION_OPEN = 0.140  # m
 GRIPPER_ACTION_CLOSE = 0.002  # m
-FT_HORIZON = 200  # number of recent force/torque samples to retain per frame
+FT_HORIZON = 1  # number of recent force/torque samples to retain per frame
 
 @dataclasses.dataclass
 class ConvertConfig:
@@ -64,7 +64,7 @@ class ConvertConfig:
     action_hz: float = 20.0  # action sampling rate (Hz) for horizon
     push_to_hub: bool = False
     local_output_dirname: str = "lan_ur3_lerobot_cartesian"
-    ft_horizon: int = 200  # number of recent force/torque samples to retain per frame
+    ft_horizon: int = 1  # number of recent force/torque samples to retain per frame
 
 
 def _reorder_joints_to_feature_order(values: np.ndarray) -> np.ndarray:

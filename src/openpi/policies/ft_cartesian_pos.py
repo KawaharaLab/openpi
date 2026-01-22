@@ -194,7 +194,7 @@ def _prepare_ft(ft: np.ndarray | None) -> np.ndarray:
         return out
 
     horizon = getattr(_model, "FT_HORIZON", None)
-    horizon = 200 if horizon is None else int(horizon)
+    horizon = 1 if horizon is None else int(horizon)
 
     if ft is None:
         return np.zeros((6, horizon), dtype=np.float32)

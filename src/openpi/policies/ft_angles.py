@@ -139,20 +139,31 @@ def _prepare_ft(ft: np.ndarray | None) -> np.ndarray:
         return out
 
     horizon = getattr(_model, "FT_HORIZON", None)
-    horizon = 200 if horizon is None else int(horizon)
+    horizon = 1 if horizon is None else int(horizon)
 
     if ft is None:
         return np.zeros((6, horizon), dtype=np.float32)
 
     arr = np.asarray(ft, dtype=np.float32)
 
+    # Handle transposed input (horizon, 6)
     if arr.shape == (horizon, 6):
         arr = arr.T
+
+    # Single-timestep vector -> expand to expected horizon
     if arr.shape == (6,):
         arr = np.repeat(arr[:, None], horizon, axis=1)
 
+    # If input has shape (6, n) and n differs from expected horizon,
+    # take the last `horizon` timesteps. For horizon==1 this selects the last column.
+    if arr.ndim == 2 and arr.shape[0] == 6 and arr.shape[1] != horizon:
+        if arr.shape[1] >= horizon:
+            arr = arr[:, -horizon:]
+        else:
+            raise ValueError(f"Expected force-torque shape (6, {horizon}), got {arr.shape}")
+
     if arr.shape != (6, horizon):
-        raise ValueError(f"Expected force/torque array of shape (6, {horizon}), got {arr.shape}")
+        raise ValueError(f"Expected force-torque shape (6, {horizon}), got {arr.shape}")
 
     filled = np.empty_like(arr)
     for c in range(6):
