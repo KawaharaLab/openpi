@@ -236,25 +236,6 @@ class PI0Pytorch(nn.Module):
                     except Exception:
                         pass
 
-        # Log a single sample of raw force/torque stats to verify signals are present.
-        if self._is_main_process() and not self._logged_ft_batch:
-            self._logged_ft_batch = True
-            try:
-                ft_info = []
-                for key, ft in getattr(observation, "force_torques", {}).items():
-                    if ft is None:
-                        ft_info.append(f"{key}: none")
-                        continue
-                    ft = ft.detach()
-                    stats = (ft.shape, ft.amin().item(), ft.amax().item(), ft.mean().item(), ft.std().item())
-                    mask = getattr(observation, "force_torque_masks", {}).get(key)
-                    mask_mean = mask.float().mean().item() if mask is not None else None
-                    ft_info.append(
-                        f"{key}: shape={stats[0]} min={stats[1]:.3f} max={stats[2]:.3f} mean={stats[3]:.3f} std={stats[4]:.3f} mask_mean={mask_mean}"
-                    )
-                logging.info("Force/torque batch stats: %s", "; ".join(ft_info) if ft_info else "<none>")
-            except Exception as exc:  # pragma: no cover - best-effort debug logging
-                logging.warning("Failed to log force/torque batch stats: %s", exc)
         return (
             list(observation.images.values()),
             list(observation.image_masks.values()),
@@ -341,23 +322,6 @@ class PI0Pytorch(nn.Module):
                 L_out = axis_embs[0].shape[1]
                 sensor_mask = sensor_mask[:, None, None].expand(bsize, 6, L_out).reshape(bsize, 6 * L_out)
                 pad_masks.append(sensor_mask)
-
-                if self._is_main_process() and not self._logged_ft_embeds:
-                    self._logged_ft_embeds = True
-                    try:
-                        ft_mean = ft_emb.detach().mean().item()
-                        ft_std = ft_emb.detach().std().item()
-                        pad_ratio = sensor_mask.float().mean().item()
-                        logging.info(
-                            "Force/torque embed stats [%s]: shape=%s mean=%.4f std=%.4f mask_mean=%.3f",
-                            key,
-                            tuple(ft_emb.shape),
-                            ft_mean,
-                            ft_std,
-                            pad_ratio,
-                        )
-                    except Exception as exc:  # pragma: no cover - best-effort debug logging
-                        logging.warning("Failed to log force/torque embed stats: %s", exc)
 
                 att_masks += [0] * (6 * L_out)
 
