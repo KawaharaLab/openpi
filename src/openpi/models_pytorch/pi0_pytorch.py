@@ -192,9 +192,49 @@ class PI0Pytorch(nn.Module):
         att_2d_masks_4d = att_2d_masks[:, None, :, :]
         return torch.where(att_2d_masks_4d, 0.0, -2.3819763e38)
 
-    def _preprocess_observation(self, observation, *, train=True):
-        """Helper method to preprocess observation."""
+    def _preprocess_observation(self, observation, *, train=True, zero_force_torque=False):
+        """Helper method to preprocess observation.
+
+        When zero_force_torque is True, force/torque signals are replaced with zeros so that
+        the FT CNN does not emit unstable activations during phases where it is intentionally
+        frozen or excluded from training.
+        """
         observation = _preprocessing.preprocess_observation_pytorch(observation, train=train)
+
+        if zero_force_torque:
+            ft_inputs = getattr(observation, "force_torques", None)
+            ft_masks = getattr(observation, "force_torque_masks", None)
+
+            zeroed_inputs = {}
+            if ft_inputs:
+                for key, val in ft_inputs.items():
+                    zeroed_inputs[key] = torch.zeros_like(val) if val is not None else None
+
+            zeroed_masks = {}
+            if ft_masks:
+                for key, mask in ft_masks.items():
+                    if mask is None:
+                        zeroed_masks[key] = None
+                    else:
+                        zeroed_masks[key] = torch.ones_like(mask, dtype=torch.bool, device=mask.device)
+
+            # Assign back, tolerating immutable observation types by best-effort setattr.
+            try:
+                observation.force_torques = zeroed_inputs
+            except Exception:
+                try:
+                    setattr(observation, "force_torques", zeroed_inputs)
+                except Exception:
+                    pass
+
+            if zeroed_masks:
+                try:
+                    observation.force_torque_masks = zeroed_masks
+                except Exception:
+                    try:
+                        setattr(observation, "force_torque_masks", zeroed_masks)
+                    except Exception:
+                        pass
 
         # Log a single sample of raw force/torque stats to verify signals are present.
         if self._is_main_process() and not self._logged_ft_batch:
@@ -425,7 +465,7 @@ class PI0Pytorch(nn.Module):
 
         return embs, pad_masks, att_masks, adarms_cond
 
-    def forward(self, observation, actions, noise=None, time=None) -> Tensor:
+    def forward(self, observation, actions, noise=None, time=None, *, zero_force_torque: bool = False) -> Tensor:
         """Do a full training forward pass and compute the loss (batch_size x num_steps x num_motors)"""
         (
             images,
@@ -435,7 +475,7 @@ class PI0Pytorch(nn.Module):
             state,
             force_torques,
             force_torque_masks,
-        ) = self._preprocess_observation(observation, train=True)
+        ) = self._preprocess_observation(observation, train=True, zero_force_torque=zero_force_torque)
 
         if noise is None:
             noise = self.sample_noise(actions.shape, actions.device)

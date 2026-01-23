@@ -64,8 +64,9 @@ mpiexec -np ${NNODES} --map-by ppr:1:node:PE=${OMP_NUM_THREADS} --bind-to core -
         --batch_size 128 \
             --num_workers 16 \
         --no-pytorch-gradient-checkpointing \
-            --ft_cnn_warmup_steps 10 \
-            --ft_cnn_head_steps 100 \
-            --num_train_steps 40000 \
+            --ft_action_head_steps 10 \
+            --ft_no_cnn_steps 50 \
+            --ft_cnn_only_steps 50 \
+            --log_interval 10
         --save_interval 10000
   "

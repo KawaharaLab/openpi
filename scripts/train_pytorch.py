@@ -657,16 +657,30 @@ def train_loop(config: _config.TrainConfig):
             )
 
     # Compute optional FT staged schedule (overrides legacy freeze when enabled).
-    # If user provides values, use them. Otherwise, force defaults (3000, 10000)
-    # and ignore legacy freeze settings.
-    ft_phase1_steps = getattr(config, "ft_cnn_warmup_steps", 0) or 0
-    ft_phase2_steps = getattr(config, "ft_cnn_head_steps", 0) or 0
-    if ft_phase1_steps == 0 and ft_phase2_steps == 0:
-        ft_phase1_steps = 3000
-        ft_phase2_steps = 10000
-    ft_schedule_enabled = (ft_phase1_steps > 0) or (ft_phase2_steps > 0)
-    ft_phase1_end = ft_phase1_steps
-    ft_phase2_end = ft_phase1_steps + ft_phase2_steps
+    # New order: action head only -> everything except CNN -> CNN only -> full model.
+    # fallback_warmup = getattr(config, "ft_cnn_warmup_steps", 0) or 0
+    # fallback_head = getattr(config, "ft_cnn_head_steps", 0) or 0
+    # action_head_steps = getattr(config, "ft_action_head_steps", 0) or 300
+    # no_cnn_steps = getattr(config, "ft_no_cnn_steps", 0)
+    # cnn_only_steps = getattr(config, "ft_cnn_only_steps", 0)
+
+    # # Gracefully fall back to existing config names to avoid breaking old configs.
+    # if action_head_steps is None:
+    #     action_head_steps = fallback_warmup
+    # if no_cnn_steps is None:
+    #     no_cnn_steps = fallback_head
+    # if cnn_only_steps is None:
+    #     cnn_only_steps = fallback_warmup
+
+    # Default schedule when nothing is set.
+    action_head_steps = 10
+    no_cnn_steps = 10
+    cnn_only_steps = 50
+
+    ft_schedule_enabled = (action_head_steps > 0) or (no_cnn_steps > 0) or (cnn_only_steps > 0)
+    ft_phase1_end = action_head_steps
+    ft_phase2_end = action_head_steps + no_cnn_steps
+    ft_phase3_end = action_head_steps + no_cnn_steps + cnn_only_steps
 
     # Compute optional freeze window; apply after we know the resume step.
     freeze_steps_total = 0
@@ -722,7 +736,15 @@ def train_loop(config: _config.TrainConfig):
             is_ft = root in {"force_torque_cnns", "force_torque_axis_cnns", "force_torque_patch_encoders"}
             is_action_head = root in {"action_in_proj", "action_out_proj", "state_proj"}
 
-            if ft_phase == "ft_cnn_only":
+            if ft_phase == "ft_action_head_only":
+                train = is_action_head
+            elif ft_phase == "ft_no_cnn":
+                train = not is_ft
+            elif ft_phase == "ft_cnn_only_return":
+                train = is_ft
+            elif ft_phase == "ft_full_train":
+                train = True
+            elif ft_phase == "ft_cnn_only":
                 train = is_ft
             elif ft_phase == "ft_cnn_plus_head":
                 train = is_ft or is_action_head
@@ -768,10 +790,12 @@ def train_loop(config: _config.TrainConfig):
         if not ft_schedule_enabled:
             return None
         if step < ft_phase1_end:
-            return "ft_cnn_only"
+            return "ft_action_head_only"
         if step < ft_phase2_end:
-            return "ft_cnn_plus_head"
-        return "ft_cnn_frozen_full"
+            return "ft_no_cnn"
+        if step < ft_phase3_end:
+            return "ft_cnn_only_return"
+        return "ft_full_train"
 
     # Optimizer + learning rate schedule from config
     warmup_steps = config.lr_schedule.warmup_steps
@@ -800,9 +824,10 @@ def train_loop(config: _config.TrainConfig):
     if ft_schedule_enabled:
         _apply_trainable_mask(freeze_active=False, ft_phase=current_ft_phase, stage="initial_ft_phase")
         logging.info(
-            "Using FT staged schedule: phase1(cnn-only)=%s, phase2(cnn+head)=%s, phase3(full-no-cnn)=rest (starting at step %s in phase %s)",
-            ft_phase1_steps,
-            ft_phase2_steps,
+            "Using FT staged schedule: phase1(action-head-only)=%s, phase2(no-cnn)=%s, phase3(cnn-only)=%s, phase4(full)=rest (starting at step %s in phase %s)",
+            action_head_steps,
+            no_cnn_steps,
+            cnn_only_steps,
             global_step,
             current_ft_phase,
         )
@@ -879,7 +904,8 @@ def train_loop(config: _config.TrainConfig):
         actions = actions.to(torch.float32).to(device)
         model.eval()
         with torch.no_grad():
-            losses = model(observation, actions)
+            zero_force_torque = current_ft_phase in {"ft_action_head_only", "ft_no_cnn"}
+            losses = model(observation, actions, zero_force_torque=zero_force_torque)
             if isinstance(losses, list | tuple):
                 losses = torch.stack(losses)
             elif not isinstance(losses, torch.Tensor):
@@ -923,12 +949,15 @@ def train_loop(config: _config.TrainConfig):
             actions = actions.to(torch.float32)  # noqa: PLW2901
             actions = actions.to(device)  # noqa: PLW2901
 
+            # Zero force/torque inputs while FT CNN is excluded to avoid unstable outputs.
+            zero_force_torque = current_ft_phase in {"ft_action_head_only", "ft_no_cnn"}
+
             # Update LR
             for pg in optim.param_groups:
                 pg["lr"] = lr_schedule(global_step)
 
             # Forward pass
-            losses = model(observation, actions)
+            losses = model(observation, actions, zero_force_torque=zero_force_torque)
             # Ensure losses is a tensor and handle different return types
             if isinstance(losses, list | tuple):
                 losses = torch.stack(losses)

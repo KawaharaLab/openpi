@@ -515,6 +515,9 @@ class TrainConfig:
     # Set both to 0 to disable and fall back to legacy freeze schedule.
     ft_cnn_warmup_steps: int = 0
     ft_cnn_head_steps: int = 0
+    ft_action_head_steps: int = 0
+    ft_no_cnn_steps: int = 0
+    ft_cnn_only_steps: int = 0
     ft_mask: bool = False
     # Precision for PyTorch training.
     pytorch_training_precision: Literal["bfloat16", "float32"] = "bfloat16"
