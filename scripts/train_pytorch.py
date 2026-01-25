@@ -178,7 +178,7 @@ def save_checkpoint(model, optimizer, global_step, checkpoint_dir: pathlib.Path,
         return
 
     # Only save if it's time to save or if it's the final step
-    if (global_step % config.save_interval == 0 and global_step > 0) or global_step == config.num_train_steps - 1:
+    if (global_step % config.save_interval == 0 and global_step > 0) or global_step == config.num_train_steps - 1 or global_step == 25000:
         # Create temporary directory for atomic checkpoint saving
         final_ckpt_dir = checkpoint_dir / f"{global_step}"
         tmp_ckpt_dir = checkpoint_dir / f"tmp_{global_step}"
@@ -559,6 +559,43 @@ def train_loop(config: _config.TrainConfig):
 
     model = openpi.models_pytorch.pi0_pytorch.PI0Pytorch(model_cfg).to(device)
 
+    # Helper: filter a loaded state_dict so only parameters with matching
+    # names and shapes are passed to `load_state_dict`. This allows loading
+    # checkpoints from models with changed CNN shapes; mismatched entries
+    # are skipped and left as the current model's random initialization.
+    def _filter_state_dict_for_model(loaded_state_dict, target_model):
+        model_state = target_model.state_dict()
+        filtered = {}
+        skipped = []
+        for k, v in loaded_state_dict.items():
+            # Try matching several common key variants (exact, remove/add 'module.' prefix)
+            candidates = [k]
+            if k.startswith("module."):
+                candidates.append(k.removeprefix("module."))
+            else:
+                candidates.append("module." + k)
+
+            matched_key = None
+            shape_ok = False
+            found_key = None
+            for ck in candidates:
+                if ck in model_state:
+                    found_key = ck
+                    if list(v.size()) == list(model_state[ck].size()):
+                        matched_key = ck
+                        shape_ok = True
+                        break
+            if matched_key is not None and shape_ok:
+                filtered[matched_key] = v
+            else:
+                if found_key is not None:
+                    # Key exists in model but shapes differ
+                    skipped.append((k, found_key, list(v.size()), list(model_state[found_key].size())))
+                else:
+                    # Key not present in model
+                    skipped.append((k, None, list(v.size()), None))
+        return filtered, skipped
+
     # Determine if LoRA variants are requested (paligemma and/or action expert).
     pal_lora_enabled = "lora" in getattr(model_cfg, "paligemma_variant", "")
     expert_lora_enabled = "lora" in getattr(model_cfg, "action_expert_variant", "")
@@ -638,44 +675,48 @@ def train_loop(config: _config.TrainConfig):
                 if base_key in drop_keys or base_key.startswith(ft_prefix):
                     state_dict.pop(key)
 
-            missing, unexpected = (model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model).load_state_dict(state_dict, strict=False)
+            base_model = model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model
+            filtered_state_dict, skipped = _filter_state_dict_for_model(state_dict, base_model)
+            if skipped:
+                # Log a summary of mismatches
+                s_sample = skipped[:10]
+                logging.warning("Skipped %d keys from checkpoint due to missing or shape mismatch; examples: %s", len(skipped), s_sample)
+            missing, unexpected = base_model.load_state_dict(filtered_state_dict, strict=False)
             logging.info(
-                "Loaded PyTorch weights with action expert reinit; missing=%s unexpected=%s", missing, unexpected
+                "Loaded PyTorch weights with action expert reinit; loaded_keys=%d missing=%s unexpected=%s skipped=%d",
+                len(filtered_state_dict), missing, unexpected, len(skipped)
             )
         else:
             # Allow missing LoRA parameters when base checkpoints do not contain them.
             state_dict = safetensors.torch.load_file(model_path)
-            missing, unexpected = (
-                model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model
-            ).load_state_dict(state_dict, strict=False)
+            base_model = model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model
+            filtered_state_dict, skipped = _filter_state_dict_for_model(state_dict, base_model)
+            if skipped:
+                s_sample = skipped[:10]
+                logging.warning("Skipped %d keys from checkpoint due to missing or shape mismatch; examples: %s", len(skipped), s_sample)
+            missing, unexpected = base_model.load_state_dict(filtered_state_dict, strict=False)
             logging.info(
-                "Loaded PyTorch weights from %s (missing=%s unexpected=%s, lora_enabled=%s)",
+                "Loaded PyTorch weights from %s (loaded_keys=%d missing=%s unexpected=%s, lora_enabled=%s, skipped=%d)",
                 config.pytorch_weight_path,
+                len(filtered_state_dict),
                 missing,
                 unexpected,
                 lora_enabled,
+                len(skipped),
             )
 
     # Compute optional FT staged schedule (overrides legacy freeze when enabled).
     # New order: action head only -> everything except CNN -> CNN only -> full model.
-    # fallback_warmup = getattr(config, "ft_cnn_warmup_steps", 0) or 0
-    # fallback_head = getattr(config, "ft_cnn_head_steps", 0) or 0
-    # action_head_steps = getattr(config, "ft_action_head_steps", 0) or 300
-    # no_cnn_steps = getattr(config, "ft_no_cnn_steps", 0)
-    # cnn_only_steps = getattr(config, "ft_cnn_only_steps", 0)
-
-    # # Gracefully fall back to existing config names to avoid breaking old configs.
-    # if action_head_steps is None:
-    #     action_head_steps = fallback_warmup
-    # if no_cnn_steps is None:
-    #     no_cnn_steps = fallback_head
-    # if cnn_only_steps is None:
-    #     cnn_only_steps = fallback_warmup
+    action_head_steps = getattr(config, "ft_action_head_steps", 0)
+    no_cnn_steps = getattr(config, "ft_no_cnn_steps", 0)
+    cnn_only_steps = getattr(config, "ft_cnn_only_steps", 0)
 
     # Default schedule when nothing is set.
-    action_head_steps = 10
-    no_cnn_steps = 10
-    cnn_only_steps = 50
+    # if (action_head_steps == 0) and (no_cnn_steps == 0) and (cnn_only_steps == 0):
+    #     action_head_steps = 10000
+    #     no_cnn_steps = 10000
+    #     cnn_only_steps = 5000
+    logging.info("FT schedule steps: action_head=%s no_cnn=%s cnn_only=%s", action_head_steps, no_cnn_steps, cnn_only_steps)
 
     ft_schedule_enabled = (action_head_steps > 0) or (no_cnn_steps > 0) or (cnn_only_steps > 0)
     ft_phase1_end = action_head_steps
@@ -799,7 +840,9 @@ def train_loop(config: _config.TrainConfig):
 
     # Optimizer + learning rate schedule from config
     warmup_steps = config.lr_schedule.warmup_steps
+    warmup_steps_after_cnn = config.lr_schedule.warmup_steps
     peak_lr = config.lr_schedule.peak_lr
+    peak_lr_after_cnn = config.lr_schedule.peak_lr / 2.0
     decay_steps = config.lr_schedule.decay_steps
     end_lr = config.lr_schedule.decay_lr
 
@@ -858,9 +901,16 @@ def train_loop(config: _config.TrainConfig):
             # Match JAX behavior: start from peak_lr / (warmup_steps + 1)
             init_lr = peak_lr / (warmup_steps + 1)
             return init_lr + (peak_lr - init_lr) * step / warmup_steps
-        # cosine decay
         progress = min(1.0, (step - warmup_steps) / max(1, decay_steps - warmup_steps))
         cos = 0.5 * (1 + np.cos(np.pi * progress))
+        # if step > ft_phase2_end:
+        #     if step < warmup_steps_after_cnn:
+        #         init_lr = end_lr + (peak_lr - end_lr) * cos
+        #         return init_lr + (peak_lr_after_cnn - init_lr) * (step - ft_phase2_end) / (warmup_steps_after_cnn - ft_phase2_end)
+        #     progress_cnn = min(1.0, (step - warmup_steps_after_cnn) / max(1, decay_steps - warmup_steps_after_cnn))
+        #     cos_cnn = 0.5 * (1 + np.cos(np.pi * progress_cnn))
+        #     return end_lr + (peak_lr_after_cnn - end_lr) * cos_cnn
+        # cosine decay
         return end_lr + (peak_lr - end_lr) * cos
 
     model.train()

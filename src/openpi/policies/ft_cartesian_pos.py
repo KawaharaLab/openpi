@@ -168,9 +168,9 @@ def _prepare_image(image: np.ndarray | None, *, fallback: np.ndarray | None = No
     return arr
 
 def _prepare_ft(ft: np.ndarray | None) -> np.ndarray:
-    """Normalize force/torque to shape (6, 80) and forward/backward fill missing values.
+    """Normalize force/torque to shape (6, 100) and forward/backward fill missing values.
 
-    Expected input: 6 channels over 80 timesteps. If values are missing (None/NaN),
+    Expected input: 6 channels over 100 timesteps. If values are missing (None/NaN),
     fill from the nearest available sample: first forward-fill, then backward-fill
     to cover any leading gaps. If all samples are missing for a channel, zeros are used.
     """
@@ -194,7 +194,7 @@ def _prepare_ft(ft: np.ndarray | None) -> np.ndarray:
         return out
 
     horizon = getattr(_model, "FT_HORIZON", None)
-    horizon = 200 if horizon is None else int(horizon)
+    horizon = 100 if horizon is None else int(horizon)
 
     if ft is None:
         return np.zeros((6, horizon), dtype=np.float32)

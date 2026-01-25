@@ -120,7 +120,10 @@ def _prepare_image(image: np.ndarray | None, *, fallback: np.ndarray | None = No
 
 
 def _prepare_ft(ft: np.ndarray | None) -> np.ndarray:
-    """Normalize force/torque to shape (6, horizon) with forward/backward fill."""
+    """Normalize force/torque to shape (6, horizon) with forward/backward fill.
+
+    If a longer sequence is provided, keep the latest `horizon` steps (from the tail).
+    """
 
     def _fill_nan_1d(x: np.ndarray) -> np.ndarray:
         out = x.copy()
@@ -139,7 +142,7 @@ def _prepare_ft(ft: np.ndarray | None) -> np.ndarray:
         return out
 
     horizon = getattr(_model, "FT_HORIZON", None)
-    horizon = 200 if horizon is None else int(horizon)
+    horizon = 100 if horizon is None else int(horizon)
 
     if ft is None:
         return np.zeros((6, horizon), dtype=np.float32)
@@ -150,6 +153,13 @@ def _prepare_ft(ft: np.ndarray | None) -> np.ndarray:
         arr = arr.T
     if arr.shape == (6,):
         arr = np.repeat(arr[:, None], horizon, axis=1)
+
+    # Truncate longer sequences by taking the most recent horizon steps.
+    if arr.ndim == 2:
+        if arr.shape[0] == 6 and arr.shape[1] > horizon:
+            arr = arr[:, -horizon:]
+        elif arr.shape[0] > horizon and arr.shape[1] == 6:
+            arr = arr[-horizon:, :].T
 
     if arr.shape != (6, horizon):
         raise ValueError(f"Expected force/torque array of shape (6, {horizon}), got {arr.shape}")

@@ -102,21 +102,18 @@ class PI0Pytorch(nn.Module):
 
         # Project per-axis force/torque time series with per-sensor & per-axis params.
         ft_hidden = 256
-        k = 21
-        pad = (k - 1) // 2
+        k = 25
         self.force_torque_axis_cnns = nn.ModuleDict(
             {
                 sensor: nn.ModuleList(
                     [
                         nn.Sequential(
-                            nn.ReplicationPad1d(pad),
-                            nn.Conv1d(1, ft_hidden, kernel_size=k, padding=0, stride=10),
+                            nn.Conv1d(1, ft_hidden, kernel_size=k, padding=0, stride=15),
                             nn.SiLU(),
-                            nn.ReplicationPad1d(2),
-                            nn.Conv1d(ft_hidden, paligemma_config.width, kernel_size=5, padding=0, stride=4),
+                            nn.Conv1d(ft_hidden, paligemma_config.width, kernel_size=3, padding=0, stride=3),
                             nn.SiLU(),
                         )
-                        for _ in range(6)
+                        for _ in range(3)
                     ]
                 )
                 for sensor in ("left_ft", "right_ft")
@@ -192,7 +189,7 @@ class PI0Pytorch(nn.Module):
         att_2d_masks_4d = att_2d_masks[:, None, :, :]
         return torch.where(att_2d_masks_4d, 0.0, -2.3819763e38)
 
-    def _preprocess_observation(self, observation, *, train=True, zero_force_torque=False):
+    def _preprocess_observation(self, observation, *, train=True):
         """Helper method to preprocess observation.
 
         When zero_force_torque is True, force/torque signals are replaced with zeros so that
@@ -200,41 +197,6 @@ class PI0Pytorch(nn.Module):
         frozen or excluded from training.
         """
         observation = _preprocessing.preprocess_observation_pytorch(observation, train=train)
-
-        if zero_force_torque:
-            ft_inputs = getattr(observation, "force_torques", None)
-            ft_masks = getattr(observation, "force_torque_masks", None)
-
-            zeroed_inputs = {}
-            if ft_inputs:
-                for key, val in ft_inputs.items():
-                    zeroed_inputs[key] = torch.zeros_like(val) if val is not None else None
-
-            zeroed_masks = {}
-            if ft_masks:
-                for key, mask in ft_masks.items():
-                    if mask is None:
-                        zeroed_masks[key] = None
-                    else:
-                        zeroed_masks[key] = torch.ones_like(mask, dtype=torch.bool, device=mask.device)
-
-            # Assign back, tolerating immutable observation types by best-effort setattr.
-            try:
-                observation.force_torques = zeroed_inputs
-            except Exception:
-                try:
-                    setattr(observation, "force_torques", zeroed_inputs)
-                except Exception:
-                    pass
-
-            if zeroed_masks:
-                try:
-                    observation.force_torque_masks = zeroed_masks
-                except Exception:
-                    try:
-                        setattr(observation, "force_torque_masks", zeroed_masks)
-                    except Exception:
-                        pass
 
         return (
             list(observation.images.values()),
@@ -261,7 +223,7 @@ class PI0Pytorch(nn.Module):
         return time.to(dtype=torch.float32, device=device)
 
     def embed_prefix(
-        self, images, img_masks, lang_tokens, lang_masks, force_torques=None, force_torque_masks=None
+        self, images, img_masks, lang_tokens, lang_masks, force_torques=None, force_torque_masks=None, zero_force_torque=False
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Embed images with SigLIP and language tokens with embedding layer to prepare
         for PaliGemma transformer processing.
@@ -286,45 +248,6 @@ class PI0Pytorch(nn.Module):
             # Create attention masks so that image tokens attend to each other
             att_masks += [0] * num_img_embs
 
-        # Process force/torque readings (optional)
-        if force_torques:
-            force_torque_masks = force_torque_masks or {}
-
-            for key, ft in force_torques.items():
-                if ft is None:
-                    continue
-
-                bsize, horizon, channels = ft.shape
-                if channels != 6:
-                    raise ValueError(f"Expected force/torque tensor with 6 channels, got {channels}")
-                if horizon != _model_ft.FT_HORIZON:
-                    raise ValueError(f"Expected force/torque horizon {_model_ft.FT_HORIZON}, got {horizon}")
-
-                # Apply per-axis CNN for this sensor: each axis keeps its own parameters.
-                if key not in self.force_torque_axis_cnns:
-                    raise ValueError(f"Unexpected force/torque key '{key}', expected one of {list(self.force_torque_axis_cnns.keys())}")
-
-                ft_axes = ft.transpose(1, 2)  # (B, 6, H)
-                axis_embs = []
-                for axis in range(6):
-                    axis_input = ft_axes[:, axis : axis + 1, :]  # (B, 1, H)
-                    axis_out = self.force_torque_axis_cnns[key][axis](axis_input)  # (B, d, L_out)
-                    axis_out = axis_out.permute(0, 2, 1)  # (B, L_out, d)
-                    axis_embs.append(axis_out)
-
-                ft_emb = torch.cat(axis_embs, dim=1)  # (B, 6 * L_out, d)
-                embs.append(ft_emb)
-
-                sensor_mask = force_torque_masks.get(key)
-                if sensor_mask is None:
-                    sensor_mask = torch.ones(bsize, dtype=torch.bool, device=ft.device)
-                sensor_mask = sensor_mask.to(dtype=torch.bool, device=ft.device)
-                L_out = axis_embs[0].shape[1]
-                sensor_mask = sensor_mask[:, None, None].expand(bsize, 6, L_out).reshape(bsize, 6 * L_out)
-                pad_masks.append(sensor_mask)
-
-                att_masks += [0] * (6 * L_out)
-
         # Process language tokens
         def lang_embed_func(lang_tokens):
             lang_emb = self.paligemma_with_expert.embed_language_tokens(lang_tokens)
@@ -335,10 +258,59 @@ class PI0Pytorch(nn.Module):
 
         embs.append(lang_emb)
         pad_masks.append(lang_masks)
-
         # full attention between image and language inputs
         num_lang_embs = lang_emb.shape[1]
         att_masks += [0] * num_lang_embs
+
+        # Process force/torque readings (optional)
+        if force_torques and not zero_force_torque:
+            force_torque_masks = force_torque_masks or {}
+
+            for key, ft in force_torques.items():
+                if ft is None:
+                    continue
+
+                bsize, horizon, channels = ft.shape
+
+                # Accept 6 channels by slicing the first 3; otherwise require exactly 3.
+                if channels == 6:
+                    ft = ft[..., :3]
+                    channels = 3
+                if channels != 3:
+                    raise ValueError(f"Expected force/torque tensor with 3 channels (or 6 to slice), got {channels}")
+
+                if horizon != _model_ft.FT_HORIZON:
+                    if horizon > _model_ft.FT_HORIZON:
+                        # Keep the latest timesteps to match horizon
+                        ft = ft[:, -_model_ft.FT_HORIZON :, :]
+                        horizon = _model_ft.FT_HORIZON
+                    else:
+                        raise ValueError(f"Expected force/torque horizon {_model_ft.FT_HORIZON}, got {horizon}")
+
+                # Apply per-axis CNN for this sensor: each axis keeps its own parameters.
+                if key not in self.force_torque_axis_cnns:
+                    raise ValueError(f"Unexpected force/torque key '{key}', expected one of {list(self.force_torque_axis_cnns.keys())}")
+
+                ft_axes = ft.transpose(1, 2)  # (B, 3, H)
+                axis_embs = []
+                for axis in range(3):
+                    axis_input = ft_axes[:, axis : axis + 1, :]  # (B, 1, H)
+                    axis_out = self.force_torque_axis_cnns[key][axis](axis_input)  # (B, d, L_out)
+                    axis_out = axis_out.permute(0, 2, 1)  # (B, L_out, d)
+                    axis_embs.append(axis_out)
+
+                ft_emb = torch.cat(axis_embs, dim=1)  # (B, 3 * L_out, d)
+                embs.append(ft_emb)
+
+                sensor_mask = force_torque_masks.get(key)
+                if sensor_mask is None:
+                    sensor_mask = torch.ones(bsize, dtype=torch.bool, device=ft.device)
+                sensor_mask = sensor_mask.to(dtype=torch.bool, device=ft.device)
+                L_out = axis_embs[0].shape[1]
+                sensor_mask = sensor_mask[:, None, None].expand(bsize, 3, L_out).reshape(bsize, 3 * L_out)
+                pad_masks.append(sensor_mask)
+
+                att_masks += [0] * (3 * L_out)
 
         embs = torch.cat(embs, dim=1)
         pad_masks = torch.cat(pad_masks, dim=1)
@@ -439,7 +411,7 @@ class PI0Pytorch(nn.Module):
             state,
             force_torques,
             force_torque_masks,
-        ) = self._preprocess_observation(observation, train=True, zero_force_torque=zero_force_torque)
+        ) = self._preprocess_observation(observation, train=True)
 
         if noise is None:
             noise = self.sample_noise(actions.shape, actions.device)
@@ -452,7 +424,7 @@ class PI0Pytorch(nn.Module):
         u_t = noise - actions
 
         prefix_embs, prefix_pad_masks, prefix_att_masks = self.embed_prefix(
-            images, img_masks, lang_tokens, lang_masks, force_torques, force_torque_masks
+            images, img_masks, lang_tokens, lang_masks, force_torques, force_torque_masks, zero_force_torque
         )
         suffix_embs, suffix_pad_masks, suffix_att_masks, adarms_cond = self.embed_suffix(state, x_t, time)
         if (

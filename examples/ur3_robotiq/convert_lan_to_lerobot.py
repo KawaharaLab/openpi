@@ -64,7 +64,7 @@ class ConvertConfig:
     action_hz: float = 20.0  # action sampling rate (Hz) for horizon
     push_to_hub: bool = False
     local_output_dirname: str = "lan_ur3_lerobot_forward"
-    ft_horizon: int = 200  # number of recent force/torque samples to retain per frame
+    ft_horizon: int = 100  # number of recent force/torque samples to retain per frame
 
 
 def _reorder_joints_to_feature_order(values: np.ndarray) -> np.ndarray:
