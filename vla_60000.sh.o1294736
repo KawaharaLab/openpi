@@ -1,0 +1,633 @@
+[mg1023:2023904] MCW rank 0 is not bound (or bound to all available processors)
+[mg1079:3721718] MCW rank 3 is not bound (or bound to all available processors)
+[mg1067:304848] MCW rank 2 is not bound (or bound to all available processors)
+[mg1066:1050586] MCW rank 1 is not bound (or bound to all available processors)
+mg1023 True 1 72 72
+mg1079 True 1 72 72
+mg1067 True 1 72 72
+mg1066 True 1 72 72
+[mg1023:2024061] Warning: could not find environment variable "WANDB_MODE"
+[mg1023:2024061] MCW rank 0 is not bound (or bound to all available processors)
+[mg1079:3721889] MCW rank 3 is not bound (or bound to all available processors)
+[mg1066:1050756] MCW rank 1 is not bound (or bound to all available processors)
+[mg1067:305019] MCW rank 2 is not bound (or bound to all available processors)
+[I126 15:20:54.838458480 TCPStoreLibUvBackend.cpp:1045] [c10d] Failed to bind to ipv6 address, trying ipv4. Error: The server socket has failed to bind. port: 29500, useIpv6: 1, code: -97, name: EAFNOSUPPORT, message: address family not supported
+Exception raised from makeWithPort at /pytorch/torch/csrc/distributed/c10d/TCPStoreLibUvBackend.cpp:252 (most recent call first):
+frame #0: c10::Error::Error(c10::SourceLocation, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >) + 0xd4 (0x400055d3b394 in /work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #1: c10::detail::torchCheckFail(char const*, char const*, unsigned int, std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&) + 0xe4 (0x400055cee1c0 in /work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/lib/libc10.so)
+frame #2: <unknown function> + 0x4d81e8c (0x40001bb11e8c in /work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #3: <unknown function> + 0x4d824f4 (0x40001bb124f4 in /work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #4: <unknown function> + 0x4d8273c (0x40001bb1273c in /work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #5: <unknown function> + 0x4d6ec08 (0x40001bafec08 in /work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #6: c10d::TCPStore::TCPStore(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, c10d::TCPStoreOptions const&) + 0x340 (0x40001bb01970 in /work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/lib/libtorch_cpu.so)
+frame #7: <unknown function> + 0x1079060 (0x400016cd9060 in /work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/lib/libtorch_python.so)
+frame #8: <unknown function> + 0x62d720 (0x40001628d720 in /work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/lib/libtorch_python.so)
+frame #9: <unknown function> + 0x34ed4c (0xaaaab73eed4c in /work/gr41/r41000/openpi/.venv/bin/python3)
+frame #10: _PyObject_MakeTpCall + 0x13c (0xaaaab729b594 in /work/gr41/r41000/openpi/.venv/bin/python3)
+frame #11: <unknown function> + 0x32f0f8 (0xaaaab73cf0f8 in /work/gr41/r41000/openpi/.venv/bin/python3)
+frame #12: _PyObject_Call + 0x118 (0xaaaab74d2124 in /work/gr41/r41000/openpi/.venv/bin/python3)
+frame #13: <unknown function> + 0x35cb1c (0xaaaab73fcb1c in /work/gr41/r41000/openpi/.venv/bin/python3)
+frame #14: <unknown function> + 0x35f64c (0xaaaab73ff64c in /work/gr41/r41000/openpi/.venv/bin/python3)
+frame #15: <unknown function> + 0x699f0c (0x4000162f9f0c in /work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/lib/libtorch_python.so)
+frame #16: _PyEval_EvalFrameDefault + 0x2e864 (0xaaaab7454058 in /work/gr41/r41000/openpi/.venv/bin/python3)
+frame #17: _PyFunction_Vectorcall + 0x1e0 (0xaaaab73cc38c in /work/gr41/r41000/openpi/.venv/bin/python3)
+frame #18: _PyEval_EvalFrameDefault + 0x3284c (0xaaaab7458040 in /work/gr41/r41000/openpi/.venv/bin/python3)
+frame #19: _PyFunction_Vectorcall + 0x1e0 (0xaaaab73cc38c in /work/gr41/r41000/openpi/.venv/bin/python3)
+frame #20: _PyEval_EvalFrameDefault + 0x3284c (0xaaaab7458040 in /work/gr41/r41000/openpi/.venv/bin/python3)
+frame #21: _PyFunction_Vectorcall + 0x1e0 (0xaaaab73cc38c in /work/gr41/r41000/openpi/.venv/bin/python3)
+frame #22: _PyEval_EvalFrameDefault + 0x3284c (0xaaaab7458040 in /work/gr41/r41000/openpi/.venv/bin/python3)
+frame #23: _PyFunction_Vectorcall + 0x1e0 (0xaaaab73cc38c in /work/gr41/r41000/openpi/.venv/bin/python3)
+frame #24: _PyObject_Call_Prepend + 0x8c (0xaaaab74d23bc in /work/gr41/r41000/openpi/.venv/bin/python3)
+frame #25: <unknown function> + 0x465ff0 (0xaaaab7505ff0 in /work/gr41/r41000/openpi/.venv/bin/python3)
+frame #26: _PyEval_EvalFrameDefault + 0x32968 (0xaaaab745815c in /work/gr41/r41000/openpi/.venv/bin/python3)
+frame #27: _PyFunction_Vectorcall + 0x1e0 (0xaaaab73cc38c in /work/gr41/r41000/openpi/.venv/bin/python3)
+frame #28: _PyEval_EvalFrameDefault + 0x3284c (0xaaaab7458040 in /work/gr41/r41000/openpi/.venv/bin/python3)
+frame #29: <unknown function> + 0x49f6e0 (0xaaaab753f6e0 in /work/gr41/r41000/openpi/.venv/bin/python3)
+frame #30: PyEval_EvalCode + 0xe0 (0xaaaab753f490 in /work/gr41/r41000/openpi/.venv/bin/python3)
+frame #31: <unknown function> + 0x4d1cd0 (0xaaaab7571cd0 in /work/gr41/r41000/openpi/.venv/bin/python3)
+frame #32: <unknown function> + 0x25b2a4 (0xaaaab72fb2a4 in /work/gr41/r41000/openpi/.venv/bin/python3)
+frame #33: _PyRun_SimpleFileObject + 0x10c (0xaaaab72fad10 in /work/gr41/r41000/openpi/.venv/bin/python3)
+frame #34: _PyRun_AnyFileObject + 0xe0 (0xaaaab72fa6e4 in /work/gr41/r41000/openpi/.venv/bin/python3)
+frame #35: <unknown function> + 0x265e18 (0xaaaab7305e18 in /work/gr41/r41000/openpi/.venv/bin/python3)
+frame #36: <unknown function> + 0x265884 (0xaaaab7305884 in /work/gr41/r41000/openpi/.venv/bin/python3)
+frame #37: Py_RunMain + 0x44c (0xaaaab757ed44 in /work/gr41/r41000/openpi/.venv/bin/python3)
+frame #38: <unknown function> + 0x1e402c (0xaaaab728402c in /work/gr41/r41000/openpi/.venv/bin/python3)
+frame #39: <unknown function> + 0x2c7a0 (0x4000156ec7a0 in /lib64/libc.so.6)
+frame #40: __libc_start_main + 0x98 (0x4000156ec878 in /lib64/libc.so.6)
+frame #41: <unknown function> + 0x406c34 (0xaaaab74a6c34 in /work/gr41/r41000/openpi/.venv/bin/python3)
+
+[W126 15:20:54.841726485 socket.cpp:752] [c10d] The client socket cannot be initialized to connect to [mg1023]:29500 (errno: 97 - Address family not supported by protocol).
+[I126 15:20:54.841906645 socket.cpp:938] [c10d] The client socket has connected to mg1023:29500 on SocketImpl(fd=11, addr=mg1023:51158, remote=mg1023:29500).
+[W126 15:20:54.948631955 socket.cpp:752] [c10d] The client socket cannot be initialized to connect to [mg1023]:29500 (errno: 97 - Address family not supported by protocol).
+[I126 15:20:54.948949364 socket.cpp:938] [c10d] The client socket has connected to mg1023:29500 on SocketImpl(fd=3, addr=mg1079:43646, remote=mg1023:29500).
+[W126 15:20:54.997822131 socket.cpp:752] [c10d] The client socket cannot be initialized to connect to [mg1023]:29500 (errno: 97 - Address family not supported by protocol).
+[I126 15:20:54.998152852 socket.cpp:938] [c10d] The client socket has connected to mg1023:29500 on SocketImpl(fd=3, addr=mg1067:38670, remote=mg1023:29500).
+[W126 15:20:54.008110290 socket.cpp:752] [c10d] The client socket cannot be initialized to connect to [mg1023]:29500 (errno: 97 - Address family not supported by protocol).
+[I126 15:20:54.008427954 socket.cpp:938] [c10d] The client socket has connected to mg1023:29500 on SocketImpl(fd=3, addr=mg1066:52636, remote=mg1023:29500).
+/work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/tyro/_parsers.py:347: UserWarning: The field `data.repo-id` is annotated with type `<class 'str'>`, but the default value `None` has type `<class 'NoneType'>`. We'll try to handle this gracefully, but it may cause unexpected behavior.
+  warnings.warn(message)
+/work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/tyro/_parsers.py:347: UserWarning: The field `data.repo-id` is annotated with type `<class 'str'>`, but the default value `None` has type `<class 'NoneType'>`. We'll try to handle this gracefully, but it may cause unexpected behavior.
+  warnings.warn(message)
+/work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/tyro/_parsers.py:347: UserWarning: The field `data.repo-id` is annotated with type `<class 'str'>`, but the default value `None` has type `<class 'NoneType'>`. We'll try to handle this gracefully, but it may cause unexpected behavior.
+  warnings.warn(message)
+/work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/tyro/_parsers.py:347: UserWarning: The field `data.repo-id` is annotated with type `<class 'str'>`, but the default value `None` has type `<class 'NoneType'>`. We'll try to handle this gracefully, but it may cause unexpected behavior.
+  warnings.warn(message)
+[mg1066] torch info: 2.5.1, cuda available: True, cuda devices: 1
+[W126 15:21:13.585059696 socket.cpp:752] [c10d] The client socket cannot be initialized to connect to [mg1023]:29500 (errno: 97 - Address family not supported by protocol).
+[I126 15:21:13.585396753 socket.cpp:938] [c10d] The client socket has connected to mg1023:29500 on SocketImpl(fd=23, addr=mg1066:38060, remote=mg1023:29500).
+[I126 15:21:13.586924021 ProcessGroupNCCL.cpp:905] [PG ID 0 PG GUID 0 Rank 1] ProcessGroupNCCL initialization options: size: 4, global rank: 1, TIMEOUT(ms): 600000, USE_HIGH_PRIORITY_STREAM: 0, SPLIT_FROM: 0, SPLIT_COLOR: 0, PG Name: 0
+[I126 15:21:13.586935029 ProcessGroupNCCL.cpp:914] [PG ID 0 PG GUID 0 Rank 1] ProcessGroupNCCL environments: NCCL version: 2.21.5, TORCH_NCCL_ASYNC_ERROR_HANDLING: 1, TORCH_NCCL_DUMP_ON_TIMEOUT: 0, TORCH_NCCL_WAIT_TIMEOUT_DUMP_MILSEC: 60000, TORCH_NCCL_DESYNC_DEBUG: 0, TORCH_NCCL_ENABLE_TIMING: 0, TORCH_NCCL_BLOCKING_WAIT: 0, TORCH_DISTRIBUTED_DEBUG: OFF, TORCH_NCCL_USE_TENSOR_REGISTER_ALLOCATOR_HOOK: 0, TORCH_NCCL_ENABLE_MONITORING: 1, TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC: 480, TORCH_NCCL_TRACE_BUFFER_SIZE: 0, TORCH_NCCL_COORD_CHECK_MILSEC: 1000, TORCH_NCCL_NAN_CHECK: 0, TORCH_NCCL_CUDA_EVENT_CACHE: 0, TORCH_NCCL_LOG_CPP_STACK_ON_UNCLEAN_SHUTDOWN: 1
+15:21:13.142 [I] GPU env: use_ddp=True local_rank=0 device=cuda:0 cuda_available=True cuda_visible_devices=0 cuda_device_count=1 current_device=0 device_name=NVIDIA GH200 120GB total_mem_gb=101.47 | rank=1 world_size=4 all_devices=[0:NVIDIA GH200 120GB] (1050911:train_pytorch.py:375)
+15:21:13.143 [I] CPU env: pid=1050911 total_cpus=72 affinity_cpus=72 OMP_NUM_THREADS=72           (1050911:train_pytorch.py:411)
+15:21:13.145 [I] Resuming from checkpoint directory: checkpoints/pi0_ur3_robotiq_ft/sweet-cherry-23 at step 40000 (1050911:train_pytorch.py:444)
+[mg1023] torch info: 2.5.1, cuda available: True, cuda devices: 1
+[W126 15:21:13.740918553 socket.cpp:752] [c10d] The client socket cannot be initialized to connect to [mg1023]:29500 (errno: 97 - Address family not supported by protocol).
+[I126 15:21:13.741114009 socket.cpp:938] [c10d] The client socket has connected to mg1023:29500 on SocketImpl(fd=23, addr=mg1023:42398, remote=mg1023:29500).
+[I126 15:21:13.742548475 ProcessGroupNCCL.cpp:905] [PG ID 0 PG GUID 0 Rank 0] ProcessGroupNCCL initialization options: size: 4, global rank: 0, TIMEOUT(ms): 600000, USE_HIGH_PRIORITY_STREAM: 0, SPLIT_FROM: 0, SPLIT_COLOR: 0, PG Name: 0
+[I126 15:21:13.742557691 ProcessGroupNCCL.cpp:914] [PG ID 0 PG GUID 0 Rank 0] ProcessGroupNCCL environments: NCCL version: 2.21.5, TORCH_NCCL_ASYNC_ERROR_HANDLING: 1, TORCH_NCCL_DUMP_ON_TIMEOUT: 0, TORCH_NCCL_WAIT_TIMEOUT_DUMP_MILSEC: 60000, TORCH_NCCL_DESYNC_DEBUG: 0, TORCH_NCCL_ENABLE_TIMING: 0, TORCH_NCCL_BLOCKING_WAIT: 0, TORCH_DISTRIBUTED_DEBUG: OFF, TORCH_NCCL_USE_TENSOR_REGISTER_ALLOCATOR_HOOK: 0, TORCH_NCCL_ENABLE_MONITORING: 1, TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC: 480, TORCH_NCCL_TRACE_BUFFER_SIZE: 0, TORCH_NCCL_COORD_CHECK_MILSEC: 1000, TORCH_NCCL_NAN_CHECK: 0, TORCH_NCCL_CUDA_EVENT_CACHE: 0, TORCH_NCCL_LOG_CPP_STACK_ON_UNCLEAN_SHUTDOWN: 1
+15:21:13.307 [I] GPU env: use_ddp=True local_rank=0 device=cuda:0 cuda_available=True cuda_visible_devices=0 cuda_device_count=1 current_device=0 device_name=NVIDIA GH200 120GB total_mem_gb=101.47 | rank=0 world_size=4 all_devices=[0:NVIDIA GH200 120GB] (2024210:train_pytorch.py:375)
+15:21:13.307 [I] CPU env: pid=2024210 total_cpus=72 affinity_cpus=72 OMP_NUM_THREADS=72           (2024210:train_pytorch.py:411)
+15:21:13.309 [I] Resuming from checkpoint directory: checkpoints/pi0_ur3_robotiq_ft/sweet-cherry-23 at step 40000 (2024210:train_pytorch.py:444)
+[mg1079] torch info: 2.5.1, cuda available: True, cuda devices: 1
+[W126 15:21:13.037386934 socket.cpp:752] [c10d] The client socket cannot be initialized to connect to [mg1023]:29500 (errno: 97 - Address family not supported by protocol).
+[I126 15:21:13.037718007 socket.cpp:938] [c10d] The client socket has connected to mg1023:29500 on SocketImpl(fd=23, addr=mg1079:55132, remote=mg1023:29500).
+[I126 15:21:13.039045912 ProcessGroupNCCL.cpp:905] [PG ID 0 PG GUID 0 Rank 3] ProcessGroupNCCL initialization options: size: 4, global rank: 3, TIMEOUT(ms): 600000, USE_HIGH_PRIORITY_STREAM: 0, SPLIT_FROM: 0, SPLIT_COLOR: 0, PG Name: 0
+[I126 15:21:13.039059672 ProcessGroupNCCL.cpp:914] [PG ID 0 PG GUID 0 Rank 3] ProcessGroupNCCL environments: NCCL version: 2.21.5, TORCH_NCCL_ASYNC_ERROR_HANDLING: 1, TORCH_NCCL_DUMP_ON_TIMEOUT: 0, TORCH_NCCL_WAIT_TIMEOUT_DUMP_MILSEC: 60000, TORCH_NCCL_DESYNC_DEBUG: 0, TORCH_NCCL_ENABLE_TIMING: 0, TORCH_NCCL_BLOCKING_WAIT: 0, TORCH_DISTRIBUTED_DEBUG: OFF, TORCH_NCCL_USE_TENSOR_REGISTER_ALLOCATOR_HOOK: 0, TORCH_NCCL_ENABLE_MONITORING: 1, TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC: 480, TORCH_NCCL_TRACE_BUFFER_SIZE: 0, TORCH_NCCL_COORD_CHECK_MILSEC: 1000, TORCH_NCCL_NAN_CHECK: 0, TORCH_NCCL_CUDA_EVENT_CACHE: 0, TORCH_NCCL_LOG_CPP_STACK_ON_UNCLEAN_SHUTDOWN: 1
+15:21:13.604 [I] GPU env: use_ddp=True local_rank=0 device=cuda:0 cuda_available=True cuda_visible_devices=0 cuda_device_count=1 current_device=0 device_name=NVIDIA GH200 120GB total_mem_gb=101.47 | rank=3 world_size=4 all_devices=[0:NVIDIA GH200 120GB] (3722044:train_pytorch.py:375)
+15:21:13.604 [I] CPU env: pid=3722044 total_cpus=72 affinity_cpus=72 OMP_NUM_THREADS=72           (3722044:train_pytorch.py:411)
+15:21:13.607 [I] Resuming from checkpoint directory: checkpoints/pi0_ur3_robotiq_ft/sweet-cherry-23 at step 40000 (3722044:train_pytorch.py:444)
+wandb: Currently logged in as: kazuki-takahashi-research (kazuki-takahashi-research-university-of-tokyo) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+[mg1067] torch info: 2.5.1, cuda available: True, cuda devices: 1
+[W126 15:21:14.491286184 socket.cpp:752] [c10d] The client socket cannot be initialized to connect to [mg1023]:29500 (errno: 97 - Address family not supported by protocol).
+[I126 15:21:14.491616010 socket.cpp:938] [c10d] The client socket has connected to mg1023:29500 on SocketImpl(fd=23, addr=mg1067:36726, remote=mg1023:29500).
+[I126 15:21:14.493178929 ProcessGroupNCCL.cpp:905] [PG ID 0 PG GUID 0 Rank 2] ProcessGroupNCCL initialization options: size: 4, global rank: 2, TIMEOUT(ms): 600000, USE_HIGH_PRIORITY_STREAM: 0, SPLIT_FROM: 0, SPLIT_COLOR: 0, PG Name: 0
+[I126 15:21:14.493188465 ProcessGroupNCCL.cpp:914] [PG ID 0 PG GUID 0 Rank 2] ProcessGroupNCCL environments: NCCL version: 2.21.5, TORCH_NCCL_ASYNC_ERROR_HANDLING: 1, TORCH_NCCL_DUMP_ON_TIMEOUT: 0, TORCH_NCCL_WAIT_TIMEOUT_DUMP_MILSEC: 60000, TORCH_NCCL_DESYNC_DEBUG: 0, TORCH_NCCL_ENABLE_TIMING: 0, TORCH_NCCL_BLOCKING_WAIT: 0, TORCH_DISTRIBUTED_DEBUG: OFF, TORCH_NCCL_USE_TENSOR_REGISTER_ALLOCATOR_HOOK: 0, TORCH_NCCL_ENABLE_MONITORING: 1, TORCH_NCCL_HEARTBEAT_TIMEOUT_SEC: 480, TORCH_NCCL_TRACE_BUFFER_SIZE: 0, TORCH_NCCL_COORD_CHECK_MILSEC: 1000, TORCH_NCCL_NAN_CHECK: 0, TORCH_NCCL_CUDA_EVENT_CACHE: 0, TORCH_NCCL_LOG_CPP_STACK_ON_UNCLEAN_SHUTDOWN: 1
+15:21:14.048 [I] GPU env: use_ddp=True local_rank=0 device=cuda:0 cuda_available=True cuda_visible_devices=0 cuda_device_count=1 current_device=0 device_name=NVIDIA GH200 120GB total_mem_gb=101.47 | rank=2 world_size=4 all_devices=[0:NVIDIA GH200 120GB] (305174:train_pytorch.py:375)
+15:21:14.048 [I] CPU env: pid=305174 total_cpus=72 affinity_cpus=72 OMP_NUM_THREADS=72            (305174:train_pytorch.py:411)
+15:21:14.050 [I] Resuming from checkpoint directory: checkpoints/pi0_ur3_robotiq_ft/sweet-cherry-23 at step 40000 (305174:train_pytorch.py:444)
+wandb: setting up run 4z8rb6ac
+wandb: Tracking run with wandb version 0.23.1
+wandb: Run data is saved locally in /work/gr41/r41000/openpi/wandb/run-20260126_152113-4z8rb6ac
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Resuming run sweet-cherry-23
+wandb: ⭐️ View project at https://wandb.ai/kazuki-takahashi-research-university-of-tokyo/pi0_ur3_robotiq_ft
+wandb: 🚀 View run at https://wandb.ai/kazuki-takahashi-research-university-of-tokyo/pi0_ur3_robotiq_ft/runs/4z8rb6ac
+[rank0]:[I126 15:21:15.813788357 ProcessGroupNCCL.cpp:2262] [PG ID 0 PG GUID 0(default_pg) Rank 0] ProcessGroupNCCL broadcast unique ID through store took 0.039712 ms
+[rank1]:[I126 15:21:15.824019280 ProcessGroupNCCL.cpp:2262] [PG ID 0 PG GUID 0(default_pg) Rank 1] ProcessGroupNCCL broadcast unique ID through store took 2071.08 ms
+[rank3]:[I126 15:21:15.813936356 ProcessGroupNCCL.cpp:2262] [PG ID 0 PG GUID 0(default_pg) Rank 3] ProcessGroupNCCL broadcast unique ID through store took 1605.22 ms
+[rank2]:[I126 15:21:15.824467674 ProcessGroupNCCL.cpp:2262] [PG ID 0 PG GUID 0(default_pg) Rank 2] ProcessGroupNCCL broadcast unique ID through store took 1102.48 ms
+[rank1]:[I126 15:21:15.317171556 ProcessGroupNCCL.cpp:2301] [PG ID 0 PG GUID 0(default_pg) Rank 1] ProcessGroupNCCL created ncclComm_ 0xaaaacfc8dfb0 on CUDA device:  
+[rank1]:[I126 15:21:15.317194276 ProcessGroupNCCL.cpp:2306] [PG ID 0 PG GUID 0(default_pg) Rank 1] NCCL_DEBUG: N/A
+[rank3]:[I126 15:21:15.307655368 ProcessGroupNCCL.cpp:2301] [PG ID 0 PG GUID 0(default_pg) Rank 3] ProcessGroupNCCL created ncclComm_ 0xaaab26d40180 on CUDA device:  
+[rank3]:[I126 15:21:15.307679016 ProcessGroupNCCL.cpp:2306] [PG ID 0 PG GUID 0(default_pg) Rank 3] NCCL_DEBUG: N/A
+[rank0]:[I126 15:21:15.310692359 ProcessGroupNCCL.cpp:2301] [PG ID 0 PG GUID 0(default_pg) Rank 0] ProcessGroupNCCL created ncclComm_ 0xaaaaf49e6a50 on CUDA device:  
+[rank0]:[I126 15:21:15.310717159 ProcessGroupNCCL.cpp:2306] [PG ID 0 PG GUID 0(default_pg) Rank 0] NCCL_DEBUG: N/A
+15:21:15.868 [I] Using checkpoint directory: checkpoints/pi0_ur3_robotiq_ft/sweet-cherry-23       (2024210:train_pytorch.py:475)
+15:21:15.869 [I] Using batch size per GPU: 32 (total batch size across 4 GPUs: 128)               (2024210:train_pytorch.py:482)
+15:21:15.872 [I] Loaded norm stats from /work/gr41/r41000/openpi/assets/pi0_ur3_robotiq_ft/lan_ur3_lerobot_forward (2024210:config.py:208)
+15:21:15.898 [I] Using checkpoint directory: checkpoints/pi0_ur3_robotiq_ft/sweet-cherry-23       (1050911:train_pytorch.py:475)
+15:21:15.898 [I] Using batch size per GPU: 32 (total batch size across 4 GPUs: 128)               (1050911:train_pytorch.py:482)
+15:21:15.901 [I] Loaded norm stats from /work/gr41/r41000/openpi/assets/pi0_ur3_robotiq_ft/lan_ur3_lerobot_forward (1050911:config.py:208)
+[rank2]:[I126 15:21:15.364734758 ProcessGroupNCCL.cpp:2301] [PG ID 0 PG GUID 0(default_pg) Rank 2] ProcessGroupNCCL created ncclComm_ 0xaaab2cc90d80 on CUDA device:  
+[rank2]:[I126 15:21:15.364756742 ProcessGroupNCCL.cpp:2306] [PG ID 0 PG GUID 0(default_pg) Rank 2] NCCL_DEBUG: N/A
+15:21:15.934 [I] Using checkpoint directory: checkpoints/pi0_ur3_robotiq_ft/sweet-cherry-23       (3722044:train_pytorch.py:475)
+15:21:15.934 [I] Using batch size per GPU: 32 (total batch size across 4 GPUs: 128)               (3722044:train_pytorch.py:482)
+15:21:15.937 [I] data_config: DataConfig(repo_id=None, local_repo_path='/work/gr41/r41000/data/lan_ur3_lerobot_forward', asset_id='lan_ur3_lerobot_forward', norm_stats={'state': NormStats(mean=array([ 0.67021048, -1.19154084,  1.07593036, -1.45248318, -1.58262992,
+       -0.11616893,  0.75781596]), std=array([0.17287976, 0.19179605, 0.25715971, 0.08438794, 0.00218366,
+       0.17442149, 0.18539198]), q01=array([ 0.34449818, -1.48838238,  0.54409346, -1.61976917, -1.59082728,
+       -0.44493052,  0.43372062]), q99=array([ 0.88357223, -0.87212701,  1.51403122, -1.22106469, -1.57639797,
+        0.10022183,  0.9335737 ])), 'actions': NormStats(mean=array([-9.80018731e-03,  7.89300911e-03, -9.31679830e-03,  1.21837785e-03,
+       -1.30356595e-04, -9.87529196e-03,  7.99365163e-01]), std=array([0.02194644, 0.05461661, 0.0874564 , 0.0426985 , 0.00030074,
+       0.02214826, 0.20411529]), q01=array([-0.0754507 , -0.14549445, -0.22793563, -0.11648132, -0.0008314 ,
+       -0.07600629,  0.43478262]), q99=array([2.97322736e-02, 1.53258195e-01, 2.24809350e-01, 1.32433618e-01,
+       9.59757805e-04, 3.02457425e-02, 9.99886957e-01])), 'force_torques/left_ft': NormStats(mean=array([ -3.1683476 ,  -5.67380142, -15.60513496,   0.08832298,
+         0.03493477,  -0.0306176 ]), std=array([0.87678945, 4.68719292, 2.79413772, 0.10947872, 0.02640096,
+       0.05040754]), q01=array([-4.18821837e+00, -1.87480206e+01, -2.80033777e+01, -1.62865393e-02,
+        1.18314478e-02, -1.51373080e-01]), q99=array([-0.74327759, -1.28337718, -9.07158953,  0.40074894,  0.09914161,
+        0.01551721])), 'force_torques/right_ft': NormStats(mean=array([-2.95578313, -2.88317466, -7.0150342 ,  0.21630318,  0.00805482,
+        0.03697153]), std=array([0.48449704, 4.14509439, 4.99011803, 0.22336268, 0.02107022,
+       0.02910019]), q01=array([-4.46259408e+00, -2.04056122e+01, -2.29471292e+01,  3.64119018e-02,
+       -5.06257293e-02,  9.18214886e-03]), q99=array([-1.82837276,  2.56492073,  4.61901935,  0.63235307,  0.05911068,
+        0.12912575]))}, repack_transforms=Group(inputs=[RepackTransform(structure={'images': {'cam_high': 'images.cam_fixed', 'cam_left_wrist': 'images.cam_wrist'}, 'state': 'state', 'actions': 'actions', 'prompt': 'prompt', 'force_torques': {'left_ft': 'left_ft', 'right_ft': 'right_ft'}})], outputs=()), data_transforms=Group(inputs=[Ur3RobotiqInputs(model_type=<ModelType.PI0: 'pi0'>)], outputs=[Ur3RobotiqOutputs(action_dims=7)]), model_transforms=Group(inputs=[InjectDefaultPrompt(prompt=None), ResizeImages(height=224, width=224), TokenizePrompt(tokenizer=<openpi.models.tokenizer.PaligemmaTokenizer object at 0x40022f102d50>, discrete_state_input=False), PadStatesAndActions(model_action_dim=32)], outputs=()), use_quantile_norm=False, action_sequence_keys=(), prompt_from_task=True, rlds_data_dir=None, action_space=None, datasets=(), train_fraction=0.9, split_seed=0) (2024210:data_loader.py:261)
+15:21:15.938 [I] Loaded norm stats from /work/gr41/r41000/openpi/assets/pi0_ur3_robotiq_ft/lan_ur3_lerobot_forward (3722044:config.py:208)
+15:21:15.946 [I] Using checkpoint directory: checkpoints/pi0_ur3_robotiq_ft/sweet-cherry-23       (305174:train_pytorch.py:475)
+15:21:15.946 [I] Using batch size per GPU: 32 (total batch size across 4 GPUs: 128)               (305174:train_pytorch.py:482)
+15:21:15.949 [I] Loaded norm stats from /work/gr41/r41000/openpi/assets/pi0_ur3_robotiq_ft/lan_ur3_lerobot_forward (305174:config.py:208)
+15:21:15.966 [I] data_config: DataConfig(repo_id=None, local_repo_path='/work/gr41/r41000/data/lan_ur3_lerobot_forward', asset_id='lan_ur3_lerobot_forward', norm_stats={'state': NormStats(mean=array([ 0.67021048, -1.19154084,  1.07593036, -1.45248318, -1.58262992,
+       -0.11616893,  0.75781596]), std=array([0.17287976, 0.19179605, 0.25715971, 0.08438794, 0.00218366,
+       0.17442149, 0.18539198]), q01=array([ 0.34449818, -1.48838238,  0.54409346, -1.61976917, -1.59082728,
+       -0.44493052,  0.43372062]), q99=array([ 0.88357223, -0.87212701,  1.51403122, -1.22106469, -1.57639797,
+        0.10022183,  0.9335737 ])), 'actions': NormStats(mean=array([-9.80018731e-03,  7.89300911e-03, -9.31679830e-03,  1.21837785e-03,
+       -1.30356595e-04, -9.87529196e-03,  7.99365163e-01]), std=array([0.02194644, 0.05461661, 0.0874564 , 0.0426985 , 0.00030074,
+       0.02214826, 0.20411529]), q01=array([-0.0754507 , -0.14549445, -0.22793563, -0.11648132, -0.0008314 ,
+       -0.07600629,  0.43478262]), q99=array([2.97322736e-02, 1.53258195e-01, 2.24809350e-01, 1.32433618e-01,
+       9.59757805e-04, 3.02457425e-02, 9.99886957e-01])), 'force_torques/left_ft': NormStats(mean=array([ -3.1683476 ,  -5.67380142, -15.60513496,   0.08832298,
+         0.03493477,  -0.0306176 ]), std=array([0.87678945, 4.68719292, 2.79413772, 0.10947872, 0.02640096,
+       0.05040754]), q01=array([-4.18821837e+00, -1.87480206e+01, -2.80033777e+01, -1.62865393e-02,
+        1.18314478e-02, -1.51373080e-01]), q99=array([-0.74327759, -1.28337718, -9.07158953,  0.40074894,  0.09914161,
+        0.01551721])), 'force_torques/right_ft': NormStats(mean=array([-2.95578313, -2.88317466, -7.0150342 ,  0.21630318,  0.00805482,
+        0.03697153]), std=array([0.48449704, 4.14509439, 4.99011803, 0.22336268, 0.02107022,
+       0.02910019]), q01=array([-4.46259408e+00, -2.04056122e+01, -2.29471292e+01,  3.64119018e-02,
+       -5.06257293e-02,  9.18214886e-03]), q99=array([-1.82837276,  2.56492073,  4.61901935,  0.63235307,  0.05911068,
+        0.12912575]))}, repack_transforms=Group(inputs=[RepackTransform(structure={'images': {'cam_high': 'images.cam_fixed', 'cam_left_wrist': 'images.cam_wrist'}, 'state': 'state', 'actions': 'actions', 'prompt': 'prompt', 'force_torques': {'left_ft': 'left_ft', 'right_ft': 'right_ft'}})], outputs=()), data_transforms=Group(inputs=[Ur3RobotiqInputs(model_type=<ModelType.PI0: 'pi0'>)], outputs=[Ur3RobotiqOutputs(action_dims=7)]), model_transforms=Group(inputs=[InjectDefaultPrompt(prompt=None), ResizeImages(height=224, width=224), TokenizePrompt(tokenizer=<openpi.models.tokenizer.PaligemmaTokenizer object at 0x40021d9087d0>, discrete_state_input=False), PadStatesAndActions(model_action_dim=32)], outputs=()), use_quantile_norm=False, action_sequence_keys=(), prompt_from_task=True, rlds_data_dir=None, action_space=None, datasets=(), train_fraction=0.9, split_seed=0) (1050911:data_loader.py:261)
+15:21:16.004 [I] data_config: DataConfig(repo_id=None, local_repo_path='/work/gr41/r41000/data/lan_ur3_lerobot_forward', asset_id='lan_ur3_lerobot_forward', norm_stats={'state': NormStats(mean=array([ 0.67021048, -1.19154084,  1.07593036, -1.45248318, -1.58262992,
+       -0.11616893,  0.75781596]), std=array([0.17287976, 0.19179605, 0.25715971, 0.08438794, 0.00218366,
+       0.17442149, 0.18539198]), q01=array([ 0.34449818, -1.48838238,  0.54409346, -1.61976917, -1.59082728,
+       -0.44493052,  0.43372062]), q99=array([ 0.88357223, -0.87212701,  1.51403122, -1.22106469, -1.57639797,
+        0.10022183,  0.9335737 ])), 'actions': NormStats(mean=array([-9.80018731e-03,  7.89300911e-03, -9.31679830e-03,  1.21837785e-03,
+       -1.30356595e-04, -9.87529196e-03,  7.99365163e-01]), std=array([0.02194644, 0.05461661, 0.0874564 , 0.0426985 , 0.00030074,
+       0.02214826, 0.20411529]), q01=array([-0.0754507 , -0.14549445, -0.22793563, -0.11648132, -0.0008314 ,
+       -0.07600629,  0.43478262]), q99=array([2.97322736e-02, 1.53258195e-01, 2.24809350e-01, 1.32433618e-01,
+       9.59757805e-04, 3.02457425e-02, 9.99886957e-01])), 'force_torques/left_ft': NormStats(mean=array([ -3.1683476 ,  -5.67380142, -15.60513496,   0.08832298,
+         0.03493477,  -0.0306176 ]), std=array([0.87678945, 4.68719292, 2.79413772, 0.10947872, 0.02640096,
+       0.05040754]), q01=array([-4.18821837e+00, -1.87480206e+01, -2.80033777e+01, -1.62865393e-02,
+        1.18314478e-02, -1.51373080e-01]), q99=array([-0.74327759, -1.28337718, -9.07158953,  0.40074894,  0.09914161,
+        0.01551721])), 'force_torques/right_ft': NormStats(mean=array([-2.95578313, -2.88317466, -7.0150342 ,  0.21630318,  0.00805482,
+        0.03697153]), std=array([0.48449704, 4.14509439, 4.99011803, 0.22336268, 0.02107022,
+       0.02910019]), q01=array([-4.46259408e+00, -2.04056122e+01, -2.29471292e+01,  3.64119018e-02,
+       -5.06257293e-02,  9.18214886e-03]), q99=array([-1.82837276,  2.56492073,  4.61901935,  0.63235307,  0.05911068,
+        0.12912575]))}, repack_transforms=Group(inputs=[RepackTransform(structure={'images': {'cam_high': 'images.cam_fixed', 'cam_left_wrist': 'images.cam_wrist'}, 'state': 'state', 'actions': 'actions', 'prompt': 'prompt', 'force_torques': {'left_ft': 'left_ft', 'right_ft': 'right_ft'}})], outputs=()), data_transforms=Group(inputs=[Ur3RobotiqInputs(model_type=<ModelType.PI0: 'pi0'>)], outputs=[Ur3RobotiqOutputs(action_dims=7)]), model_transforms=Group(inputs=[InjectDefaultPrompt(prompt=None), ResizeImages(height=224, width=224), TokenizePrompt(tokenizer=<openpi.models.tokenizer.PaligemmaTokenizer object at 0x40015d7c2f50>, discrete_state_input=False), PadStatesAndActions(model_action_dim=32)], outputs=()), use_quantile_norm=False, action_sequence_keys=(), prompt_from_task=True, rlds_data_dir=None, action_space=None, datasets=(), train_fraction=0.9, split_seed=0) (3722044:data_loader.py:261)
+15:21:16.014 [I] data_config: DataConfig(repo_id=None, local_repo_path='/work/gr41/r41000/data/lan_ur3_lerobot_forward', asset_id='lan_ur3_lerobot_forward', norm_stats={'state': NormStats(mean=array([ 0.67021048, -1.19154084,  1.07593036, -1.45248318, -1.58262992,
+       -0.11616893,  0.75781596]), std=array([0.17287976, 0.19179605, 0.25715971, 0.08438794, 0.00218366,
+       0.17442149, 0.18539198]), q01=array([ 0.34449818, -1.48838238,  0.54409346, -1.61976917, -1.59082728,
+       -0.44493052,  0.43372062]), q99=array([ 0.88357223, -0.87212701,  1.51403122, -1.22106469, -1.57639797,
+        0.10022183,  0.9335737 ])), 'actions': NormStats(mean=array([-9.80018731e-03,  7.89300911e-03, -9.31679830e-03,  1.21837785e-03,
+       -1.30356595e-04, -9.87529196e-03,  7.99365163e-01]), std=array([0.02194644, 0.05461661, 0.0874564 , 0.0426985 , 0.00030074,
+       0.02214826, 0.20411529]), q01=array([-0.0754507 , -0.14549445, -0.22793563, -0.11648132, -0.0008314 ,
+       -0.07600629,  0.43478262]), q99=array([2.97322736e-02, 1.53258195e-01, 2.24809350e-01, 1.32433618e-01,
+       9.59757805e-04, 3.02457425e-02, 9.99886957e-01])), 'force_torques/left_ft': NormStats(mean=array([ -3.1683476 ,  -5.67380142, -15.60513496,   0.08832298,
+         0.03493477,  -0.0306176 ]), std=array([0.87678945, 4.68719292, 2.79413772, 0.10947872, 0.02640096,
+       0.05040754]), q01=array([-4.18821837e+00, -1.87480206e+01, -2.80033777e+01, -1.62865393e-02,
+        1.18314478e-02, -1.51373080e-01]), q99=array([-0.74327759, -1.28337718, -9.07158953,  0.40074894,  0.09914161,
+        0.01551721])), 'force_torques/right_ft': NormStats(mean=array([-2.95578313, -2.88317466, -7.0150342 ,  0.21630318,  0.00805482,
+        0.03697153]), std=array([0.48449704, 4.14509439, 4.99011803, 0.22336268, 0.02107022,
+       0.02910019]), q01=array([-4.46259408e+00, -2.04056122e+01, -2.29471292e+01,  3.64119018e-02,
+       -5.06257293e-02,  9.18214886e-03]), q99=array([-1.82837276,  2.56492073,  4.61901935,  0.63235307,  0.05911068,
+        0.12912575]))}, repack_transforms=Group(inputs=[RepackTransform(structure={'images': {'cam_high': 'images.cam_fixed', 'cam_left_wrist': 'images.cam_wrist'}, 'state': 'state', 'actions': 'actions', 'prompt': 'prompt', 'force_torques': {'left_ft': 'left_ft', 'right_ft': 'right_ft'}})], outputs=()), data_transforms=Group(inputs=[Ur3RobotiqInputs(model_type=<ModelType.PI0: 'pi0'>)], outputs=[Ur3RobotiqOutputs(action_dims=7)]), model_transforms=Group(inputs=[InjectDefaultPrompt(prompt=None), ResizeImages(height=224, width=224), TokenizePrompt(tokenizer=<openpi.models.tokenizer.PaligemmaTokenizer object at 0x400211e45210>, discrete_state_input=False), PadStatesAndActions(model_action_dim=32)], outputs=()), use_quantile_norm=False, action_sequence_keys=(), prompt_from_task=True, rlds_data_dir=None, action_space=None, datasets=(), train_fraction=0.9, split_seed=0) (305174:data_loader.py:261)
+15:21:16.212 [W] 'torchcodec' is not available in your platform, falling back to 'pyav' as a default decoder (2024210:video_utils.py:37)
+15:21:16.283 [W] 'torchcodec' is not available in your platform, falling back to 'pyav' as a default decoder (3722044:video_utils.py:37)
+15:21:16.399 [W] 'torchcodec' is not available in your platform, falling back to 'pyav' as a default decoder (1050911:video_utils.py:37)
+15:21:16.446 [W] 'torchcodec' is not available in your platform, falling back to 'pyav' as a default decoder (305174:video_utils.py:37)
+15:21:17.670 [I] local_batch_size: 32                                                             (2024210:data_loader.py:362)
+15:21:17.736 [I] local_batch_size: 32                                                             (1050911:data_loader.py:362)
+15:21:17.872 [I] local_batch_size: 32                                                             (3722044:data_loader.py:362)
+INFO:2026-01-26 15:21:17,896:jax._src.xla_bridge:925: Unable to initialize backend 'rocm': module 'jaxlib.xla_extension' has no attribute 'GpuAllocatorConfig'
+15:21:17.896 [I] Unable to initialize backend 'rocm': module 'jaxlib.xla_extension' has no attribute 'GpuAllocatorConfig' (2024210:xla_bridge.py:925)
+INFO:2026-01-26 15:21:17,906:jax._src.xla_bridge:925: Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory
+15:21:17.906 [I] Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory (2024210:xla_bridge.py:925)
+15:21:17.908 [I] Loaded norm stats from /work/gr41/r41000/openpi/assets/pi0_ur3_robotiq_ft/lan_ur3_lerobot_forward (2024210:config.py:208)
+15:21:17.927 [I] local_batch_size: 32                                                             (305174:data_loader.py:362)
+INFO:2026-01-26 15:21:17,965:jax._src.xla_bridge:925: Unable to initialize backend 'rocm': module 'jaxlib.xla_extension' has no attribute 'GpuAllocatorConfig'
+15:21:17.965 [I] Unable to initialize backend 'rocm': module 'jaxlib.xla_extension' has no attribute 'GpuAllocatorConfig' (1050911:xla_bridge.py:925)
+15:21:17.969 [I] data_config: DataConfig(repo_id=None, local_repo_path='/work/gr41/r41000/data/lan_ur3_lerobot_forward', asset_id='lan_ur3_lerobot_forward', norm_stats={'state': NormStats(mean=array([ 0.67021048, -1.19154084,  1.07593036, -1.45248318, -1.58262992,
+       -0.11616893,  0.75781596]), std=array([0.17287976, 0.19179605, 0.25715971, 0.08438794, 0.00218366,
+       0.17442149, 0.18539198]), q01=array([ 0.34449818, -1.48838238,  0.54409346, -1.61976917, -1.59082728,
+       -0.44493052,  0.43372062]), q99=array([ 0.88357223, -0.87212701,  1.51403122, -1.22106469, -1.57639797,
+        0.10022183,  0.9335737 ])), 'actions': NormStats(mean=array([-9.80018731e-03,  7.89300911e-03, -9.31679830e-03,  1.21837785e-03,
+       -1.30356595e-04, -9.87529196e-03,  7.99365163e-01]), std=array([0.02194644, 0.05461661, 0.0874564 , 0.0426985 , 0.00030074,
+       0.02214826, 0.20411529]), q01=array([-0.0754507 , -0.14549445, -0.22793563, -0.11648132, -0.0008314 ,
+       -0.07600629,  0.43478262]), q99=array([2.97322736e-02, 1.53258195e-01, 2.24809350e-01, 1.32433618e-01,
+       9.59757805e-04, 3.02457425e-02, 9.99886957e-01])), 'force_torques/left_ft': NormStats(mean=array([ -3.1683476 ,  -5.67380142, -15.60513496,   0.08832298,
+         0.03493477,  -0.0306176 ]), std=array([0.87678945, 4.68719292, 2.79413772, 0.10947872, 0.02640096,
+       0.05040754]), q01=array([-4.18821837e+00, -1.87480206e+01, -2.80033777e+01, -1.62865393e-02,
+        1.18314478e-02, -1.51373080e-01]), q99=array([-0.74327759, -1.28337718, -9.07158953,  0.40074894,  0.09914161,
+        0.01551721])), 'force_torques/right_ft': NormStats(mean=array([-2.95578313, -2.88317466, -7.0150342 ,  0.21630318,  0.00805482,
+        0.03697153]), std=array([0.48449704, 4.14509439, 4.99011803, 0.22336268, 0.02107022,
+       0.02910019]), q01=array([-4.46259408e+00, -2.04056122e+01, -2.29471292e+01,  3.64119018e-02,
+       -5.06257293e-02,  9.18214886e-03]), q99=array([-1.82837276,  2.56492073,  4.61901935,  0.63235307,  0.05911068,
+        0.12912575]))}, repack_transforms=Group(inputs=[RepackTransform(structure={'images': {'cam_high': 'images.cam_fixed', 'cam_left_wrist': 'images.cam_wrist'}, 'state': 'state', 'actions': 'actions', 'prompt': 'prompt', 'force_torques': {'left_ft': 'left_ft', 'right_ft': 'right_ft'}})], outputs=()), data_transforms=Group(inputs=[Ur3RobotiqInputs(model_type=<ModelType.PI0: 'pi0'>)], outputs=[Ur3RobotiqOutputs(action_dims=7)]), model_transforms=Group(inputs=[InjectDefaultPrompt(prompt=None), ResizeImages(height=224, width=224), TokenizePrompt(tokenizer=<openpi.models.tokenizer.PaligemmaTokenizer object at 0x4004604ad010>, discrete_state_input=False), PadStatesAndActions(model_action_dim=32)], outputs=()), use_quantile_norm=False, action_sequence_keys=(), prompt_from_task=True, rlds_data_dir=None, action_space=None, datasets=(), train_fraction=0.9, split_seed=0) (2024210:data_loader.py:261)
+INFO:2026-01-26 15:21:17,974:jax._src.xla_bridge:925: Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory
+15:21:17.974 [I] Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory (1050911:xla_bridge.py:925)
+15:21:17.976 [I] Loaded norm stats from /work/gr41/r41000/openpi/assets/pi0_ur3_robotiq_ft/lan_ur3_lerobot_forward (1050911:config.py:208)
+15:21:18.037 [I] data_config: DataConfig(repo_id=None, local_repo_path='/work/gr41/r41000/data/lan_ur3_lerobot_forward', asset_id='lan_ur3_lerobot_forward', norm_stats={'state': NormStats(mean=array([ 0.67021048, -1.19154084,  1.07593036, -1.45248318, -1.58262992,
+       -0.11616893,  0.75781596]), std=array([0.17287976, 0.19179605, 0.25715971, 0.08438794, 0.00218366,
+       0.17442149, 0.18539198]), q01=array([ 0.34449818, -1.48838238,  0.54409346, -1.61976917, -1.59082728,
+       -0.44493052,  0.43372062]), q99=array([ 0.88357223, -0.87212701,  1.51403122, -1.22106469, -1.57639797,
+        0.10022183,  0.9335737 ])), 'actions': NormStats(mean=array([-9.80018731e-03,  7.89300911e-03, -9.31679830e-03,  1.21837785e-03,
+       -1.30356595e-04, -9.87529196e-03,  7.99365163e-01]), std=array([0.02194644, 0.05461661, 0.0874564 , 0.0426985 , 0.00030074,
+       0.02214826, 0.20411529]), q01=array([-0.0754507 , -0.14549445, -0.22793563, -0.11648132, -0.0008314 ,
+       -0.07600629,  0.43478262]), q99=array([2.97322736e-02, 1.53258195e-01, 2.24809350e-01, 1.32433618e-01,
+       9.59757805e-04, 3.02457425e-02, 9.99886957e-01])), 'force_torques/left_ft': NormStats(mean=array([ -3.1683476 ,  -5.67380142, -15.60513496,   0.08832298,
+         0.03493477,  -0.0306176 ]), std=array([0.87678945, 4.68719292, 2.79413772, 0.10947872, 0.02640096,
+       0.05040754]), q01=array([-4.18821837e+00, -1.87480206e+01, -2.80033777e+01, -1.62865393e-02,
+        1.18314478e-02, -1.51373080e-01]), q99=array([-0.74327759, -1.28337718, -9.07158953,  0.40074894,  0.09914161,
+        0.01551721])), 'force_torques/right_ft': NormStats(mean=array([-2.95578313, -2.88317466, -7.0150342 ,  0.21630318,  0.00805482,
+        0.03697153]), std=array([0.48449704, 4.14509439, 4.99011803, 0.22336268, 0.02107022,
+       0.02910019]), q01=array([-4.46259408e+00, -2.04056122e+01, -2.29471292e+01,  3.64119018e-02,
+       -5.06257293e-02,  9.18214886e-03]), q99=array([-1.82837276,  2.56492073,  4.61901935,  0.63235307,  0.05911068,
+        0.12912575]))}, repack_transforms=Group(inputs=[RepackTransform(structure={'images': {'cam_high': 'images.cam_fixed', 'cam_left_wrist': 'images.cam_wrist'}, 'state': 'state', 'actions': 'actions', 'prompt': 'prompt', 'force_torques': {'left_ft': 'left_ft', 'right_ft': 'right_ft'}})], outputs=()), data_transforms=Group(inputs=[Ur3RobotiqInputs(model_type=<ModelType.PI0: 'pi0'>)], outputs=[Ur3RobotiqOutputs(action_dims=7)]), model_transforms=Group(inputs=[InjectDefaultPrompt(prompt=None), ResizeImages(height=224, width=224), TokenizePrompt(tokenizer=<openpi.models.tokenizer.PaligemmaTokenizer object at 0x40021db97c50>, discrete_state_input=False), PadStatesAndActions(model_action_dim=32)], outputs=()), use_quantile_norm=False, action_sequence_keys=(), prompt_from_task=True, rlds_data_dir=None, action_space=None, datasets=(), train_fraction=0.9, split_seed=0) (1050911:data_loader.py:261)
+INFO:2026-01-26 15:21:18,098:jax._src.xla_bridge:925: Unable to initialize backend 'rocm': module 'jaxlib.xla_extension' has no attribute 'GpuAllocatorConfig'
+15:21:18.098 [I] Unable to initialize backend 'rocm': module 'jaxlib.xla_extension' has no attribute 'GpuAllocatorConfig' (3722044:xla_bridge.py:925)
+INFO:2026-01-26 15:21:18,107:jax._src.xla_bridge:925: Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory
+15:21:18.107 [I] Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory (3722044:xla_bridge.py:925)
+15:21:18.109 [I] Loaded norm stats from /work/gr41/r41000/openpi/assets/pi0_ur3_robotiq_ft/lan_ur3_lerobot_forward (3722044:config.py:208)
+INFO:2026-01-26 15:21:18,160:jax._src.xla_bridge:925: Unable to initialize backend 'rocm': module 'jaxlib.xla_extension' has no attribute 'GpuAllocatorConfig'
+15:21:18.160 [I] Unable to initialize backend 'rocm': module 'jaxlib.xla_extension' has no attribute 'GpuAllocatorConfig' (305174:xla_bridge.py:925)
+INFO:2026-01-26 15:21:18,169:jax._src.xla_bridge:925: Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory
+15:21:18.169 [I] Unable to initialize backend 'tpu': INTERNAL: Failed to open libtpu.so: libtpu.so: cannot open shared object file: No such file or directory (305174:xla_bridge.py:925)
+15:21:18.171 [I] Loaded norm stats from /work/gr41/r41000/openpi/assets/pi0_ur3_robotiq_ft/lan_ur3_lerobot_forward (305174:config.py:208)
+15:21:18.172 [I] data_config: DataConfig(repo_id=None, local_repo_path='/work/gr41/r41000/data/lan_ur3_lerobot_forward', asset_id='lan_ur3_lerobot_forward', norm_stats={'state': NormStats(mean=array([ 0.67021048, -1.19154084,  1.07593036, -1.45248318, -1.58262992,
+       -0.11616893,  0.75781596]), std=array([0.17287976, 0.19179605, 0.25715971, 0.08438794, 0.00218366,
+       0.17442149, 0.18539198]), q01=array([ 0.34449818, -1.48838238,  0.54409346, -1.61976917, -1.59082728,
+       -0.44493052,  0.43372062]), q99=array([ 0.88357223, -0.87212701,  1.51403122, -1.22106469, -1.57639797,
+        0.10022183,  0.9335737 ])), 'actions': NormStats(mean=array([-9.80018731e-03,  7.89300911e-03, -9.31679830e-03,  1.21837785e-03,
+       -1.30356595e-04, -9.87529196e-03,  7.99365163e-01]), std=array([0.02194644, 0.05461661, 0.0874564 , 0.0426985 , 0.00030074,
+       0.02214826, 0.20411529]), q01=array([-0.0754507 , -0.14549445, -0.22793563, -0.11648132, -0.0008314 ,
+       -0.07600629,  0.43478262]), q99=array([2.97322736e-02, 1.53258195e-01, 2.24809350e-01, 1.32433618e-01,
+       9.59757805e-04, 3.02457425e-02, 9.99886957e-01])), 'force_torques/left_ft': NormStats(mean=array([ -3.1683476 ,  -5.67380142, -15.60513496,   0.08832298,
+         0.03493477,  -0.0306176 ]), std=array([0.87678945, 4.68719292, 2.79413772, 0.10947872, 0.02640096,
+       0.05040754]), q01=array([-4.18821837e+00, -1.87480206e+01, -2.80033777e+01, -1.62865393e-02,
+        1.18314478e-02, -1.51373080e-01]), q99=array([-0.74327759, -1.28337718, -9.07158953,  0.40074894,  0.09914161,
+        0.01551721])), 'force_torques/right_ft': NormStats(mean=array([-2.95578313, -2.88317466, -7.0150342 ,  0.21630318,  0.00805482,
+        0.03697153]), std=array([0.48449704, 4.14509439, 4.99011803, 0.22336268, 0.02107022,
+       0.02910019]), q01=array([-4.46259408e+00, -2.04056122e+01, -2.29471292e+01,  3.64119018e-02,
+       -5.06257293e-02,  9.18214886e-03]), q99=array([-1.82837276,  2.56492073,  4.61901935,  0.63235307,  0.05911068,
+        0.12912575]))}, repack_transforms=Group(inputs=[RepackTransform(structure={'images': {'cam_high': 'images.cam_fixed', 'cam_left_wrist': 'images.cam_wrist'}, 'state': 'state', 'actions': 'actions', 'prompt': 'prompt', 'force_torques': {'left_ft': 'left_ft', 'right_ft': 'right_ft'}})], outputs=()), data_transforms=Group(inputs=[Ur3RobotiqInputs(model_type=<ModelType.PI0: 'pi0'>)], outputs=[Ur3RobotiqOutputs(action_dims=7)]), model_transforms=Group(inputs=[InjectDefaultPrompt(prompt=None), ResizeImages(height=224, width=224), TokenizePrompt(tokenizer=<openpi.models.tokenizer.PaligemmaTokenizer object at 0x40000a3e32d0>, discrete_state_input=False), PadStatesAndActions(model_action_dim=32)], outputs=()), use_quantile_norm=False, action_sequence_keys=(), prompt_from_task=True, rlds_data_dir=None, action_space=None, datasets=(), train_fraction=0.9, split_seed=0) (3722044:data_loader.py:261)
+15:21:18.234 [I] data_config: DataConfig(repo_id=None, local_repo_path='/work/gr41/r41000/data/lan_ur3_lerobot_forward', asset_id='lan_ur3_lerobot_forward', norm_stats={'state': NormStats(mean=array([ 0.67021048, -1.19154084,  1.07593036, -1.45248318, -1.58262992,
+       -0.11616893,  0.75781596]), std=array([0.17287976, 0.19179605, 0.25715971, 0.08438794, 0.00218366,
+       0.17442149, 0.18539198]), q01=array([ 0.34449818, -1.48838238,  0.54409346, -1.61976917, -1.59082728,
+       -0.44493052,  0.43372062]), q99=array([ 0.88357223, -0.87212701,  1.51403122, -1.22106469, -1.57639797,
+        0.10022183,  0.9335737 ])), 'actions': NormStats(mean=array([-9.80018731e-03,  7.89300911e-03, -9.31679830e-03,  1.21837785e-03,
+       -1.30356595e-04, -9.87529196e-03,  7.99365163e-01]), std=array([0.02194644, 0.05461661, 0.0874564 , 0.0426985 , 0.00030074,
+       0.02214826, 0.20411529]), q01=array([-0.0754507 , -0.14549445, -0.22793563, -0.11648132, -0.0008314 ,
+       -0.07600629,  0.43478262]), q99=array([2.97322736e-02, 1.53258195e-01, 2.24809350e-01, 1.32433618e-01,
+       9.59757805e-04, 3.02457425e-02, 9.99886957e-01])), 'force_torques/left_ft': NormStats(mean=array([ -3.1683476 ,  -5.67380142, -15.60513496,   0.08832298,
+         0.03493477,  -0.0306176 ]), std=array([0.87678945, 4.68719292, 2.79413772, 0.10947872, 0.02640096,
+       0.05040754]), q01=array([-4.18821837e+00, -1.87480206e+01, -2.80033777e+01, -1.62865393e-02,
+        1.18314478e-02, -1.51373080e-01]), q99=array([-0.74327759, -1.28337718, -9.07158953,  0.40074894,  0.09914161,
+        0.01551721])), 'force_torques/right_ft': NormStats(mean=array([-2.95578313, -2.88317466, -7.0150342 ,  0.21630318,  0.00805482,
+        0.03697153]), std=array([0.48449704, 4.14509439, 4.99011803, 0.22336268, 0.02107022,
+       0.02910019]), q01=array([-4.46259408e+00, -2.04056122e+01, -2.29471292e+01,  3.64119018e-02,
+       -5.06257293e-02,  9.18214886e-03]), q99=array([-1.82837276,  2.56492073,  4.61901935,  0.63235307,  0.05911068,
+        0.12912575]))}, repack_transforms=Group(inputs=[RepackTransform(structure={'images': {'cam_high': 'images.cam_fixed', 'cam_left_wrist': 'images.cam_wrist'}, 'state': 'state', 'actions': 'actions', 'prompt': 'prompt', 'force_torques': {'left_ft': 'left_ft', 'right_ft': 'right_ft'}})], outputs=()), data_transforms=Group(inputs=[Ur3RobotiqInputs(model_type=<ModelType.PI0: 'pi0'>)], outputs=[Ur3RobotiqOutputs(action_dims=7)]), model_transforms=Group(inputs=[InjectDefaultPrompt(prompt=None), ResizeImages(height=224, width=224), TokenizePrompt(tokenizer=<openpi.models.tokenizer.PaligemmaTokenizer object at 0x4000a1da1ed0>, discrete_state_input=False), PadStatesAndActions(model_action_dim=32)], outputs=()), use_quantile_norm=False, action_sequence_keys=(), prompt_from_task=True, rlds_data_dir=None, action_space=None, datasets=(), train_fraction=0.9, split_seed=0) (305174:data_loader.py:261)
+15:21:18.234 [W] 'torchcodec' is not available in your platform, falling back to 'pyav' as a default decoder (2024210:video_utils.py:37)
+15:21:18.439 [W] 'torchcodec' is not available in your platform, falling back to 'pyav' as a default decoder (1050911:video_utils.py:37)
+15:21:18.439 [W] 'torchcodec' is not available in your platform, falling back to 'pyav' as a default decoder (3722044:video_utils.py:37)
+15:21:18.635 [W] 'torchcodec' is not available in your platform, falling back to 'pyav' as a default decoder (305174:video_utils.py:37)
+15:21:19.041 [I] local_batch_size: 8                                                              (2024210:data_loader.py:362)
+15:21:19.261 [I] local_batch_size: 8                                                              (1050911:data_loader.py:362)
+15:21:19.404 [I] local_batch_size: 8                                                              (3722044:data_loader.py:362)
+15:21:19.452 [I] local_batch_size: 8                                                              (305174:data_loader.py:362)
+15:22:04.793 [I] [LoRA] no lora_configs found on config; skipping LoRA application                (2024210:gemma_pytorch.py:81)
+15:22:04.793 [I] [LoRA] no lora_configs found on config; skipping LoRA application                (2024210:gemma_pytorch.py:81)
+15:22:05.121 [I] [LoRA] no lora_configs found on config; skipping LoRA application                (3722044:gemma_pytorch.py:81)
+15:22:05.121 [I] [LoRA] no lora_configs found on config; skipping LoRA application                (3722044:gemma_pytorch.py:81)
+15:22:05.588 [I] [LoRA] no lora_configs found on config; skipping LoRA application                (1050911:gemma_pytorch.py:81)
+15:22:05.588 [I] [LoRA] no lora_configs found on config; skipping LoRA application                (1050911:gemma_pytorch.py:81)
+15:22:05.770 [I] [LoRA] no lora_configs found on config; skipping LoRA application                (305174:gemma_pytorch.py:81)
+15:22:05.770 [I] [LoRA] no lora_configs found on config; skipping LoRA application                (305174:gemma_pytorch.py:81)
+15:22:06.010 [I] Gradient checkpointing is disabled by config                                     (2024210:train_pytorch.py:622)
+15:22:06.011 [I] Step 0 (after_model_creation): GPU memory - allocated: 7.06GB, reserved: 7.13GB, free: 0.07GB, peak_allocated: 7.06GB, peak_reserved: 7.13GB | DDP: rank=0, world_size=4 (2024210:train_pytorch.py:344)
+15:22:06.012 [I] [after_model_build] LoRA modules detected: 0                                     (2024210:train_pytorch.py:609)
+15:22:06.230 [I] Gradient checkpointing is disabled by config                                     (3722044:train_pytorch.py:622)
+15:22:06.730 [I] Gradient checkpointing is disabled by config                                     (1050911:train_pytorch.py:622)
+15:22:07.137 [I] Gradient checkpointing is disabled by config                                     (305174:train_pytorch.py:622)
+15:22:07.204 [I] Loading weights from: /work/gr41/r41000/openpi/checkpoints/pi0_ur3_robotiq_ft/sweet-cherry-23/40000/ (2024210:train_pytorch.py:655)
+15:22:07.208 [I] Loading weights from: /work/gr41/r41000/openpi/checkpoints/pi0_ur3_robotiq_ft/sweet-cherry-23/40000/ (1050911:train_pytorch.py:655)
+15:22:07.209 [I] Loading weights from: /work/gr41/r41000/openpi/checkpoints/pi0_ur3_robotiq_ft/sweet-cherry-23/40000/ (3722044:train_pytorch.py:655)
+15:22:07.318 [I] Loading weights from: /work/gr41/r41000/openpi/checkpoints/pi0_ur3_robotiq_ft/sweet-cherry-23/40000/ (305174:train_pytorch.py:655)
+15:22:07.576 [W] Skipped 36 keys from checkpoint due to missing or shape mismatch; examples: [('force_torque_axis_cnns.left_ft.0.0.weight', 'force_torque_axis_cnns.left_ft.0.0.weight', [256, 1, 5], [256, 1, 25]), ('force_torque_axis_cnns.left_ft.0.2.weight', 'force_torque_axis_cnns.left_ft.0.2.weight', [2048, 256, 5], [2048, 256, 3]), ('force_torque_axis_cnns.left_ft.1.0.weight', 'force_torque_axis_cnns.left_ft.1.0.weight', [256, 1, 5], [256, 1, 25]), ('force_torque_axis_cnns.left_ft.1.2.weight', 'force_torque_axis_cnns.left_ft.1.2.weight', [2048, 256, 5], [2048, 256, 3]), ('force_torque_axis_cnns.left_ft.2.0.weight', 'force_torque_axis_cnns.left_ft.2.0.weight', [256, 1, 5], [256, 1, 25]), ('force_torque_axis_cnns.left_ft.2.2.weight', 'force_torque_axis_cnns.left_ft.2.2.weight', [2048, 256, 5], [2048, 256, 3]), ('force_torque_axis_cnns.left_ft.3.0.bias', None, [256], None), ('force_torque_axis_cnns.left_ft.3.0.weight', None, [256, 1, 5], None), ('force_torque_axis_cnns.left_ft.3.2.bias', None, [2048], None), ('force_torque_axis_cnns.left_ft.3.2.weight', None, [2048, 256, 5], None)] (2024210:train_pytorch.py:696)
+15:22:07.592 [W] Skipped 36 keys from checkpoint due to missing or shape mismatch; examples: [('force_torque_axis_cnns.left_ft.0.0.weight', 'force_torque_axis_cnns.left_ft.0.0.weight', [256, 1, 5], [256, 1, 25]), ('force_torque_axis_cnns.left_ft.0.2.weight', 'force_torque_axis_cnns.left_ft.0.2.weight', [2048, 256, 5], [2048, 256, 3]), ('force_torque_axis_cnns.left_ft.1.0.weight', 'force_torque_axis_cnns.left_ft.1.0.weight', [256, 1, 5], [256, 1, 25]), ('force_torque_axis_cnns.left_ft.1.2.weight', 'force_torque_axis_cnns.left_ft.1.2.weight', [2048, 256, 5], [2048, 256, 3]), ('force_torque_axis_cnns.left_ft.2.0.weight', 'force_torque_axis_cnns.left_ft.2.0.weight', [256, 1, 5], [256, 1, 25]), ('force_torque_axis_cnns.left_ft.2.2.weight', 'force_torque_axis_cnns.left_ft.2.2.weight', [2048, 256, 5], [2048, 256, 3]), ('force_torque_axis_cnns.left_ft.3.0.bias', None, [256], None), ('force_torque_axis_cnns.left_ft.3.0.weight', None, [256, 1, 5], None), ('force_torque_axis_cnns.left_ft.3.2.bias', None, [2048], None), ('force_torque_axis_cnns.left_ft.3.2.weight', None, [2048, 256, 5], None)] (1050911:train_pytorch.py:696)
+15:22:07.592 [W] Skipped 36 keys from checkpoint due to missing or shape mismatch; examples: [('force_torque_axis_cnns.left_ft.0.0.weight', 'force_torque_axis_cnns.left_ft.0.0.weight', [256, 1, 5], [256, 1, 25]), ('force_torque_axis_cnns.left_ft.0.2.weight', 'force_torque_axis_cnns.left_ft.0.2.weight', [2048, 256, 5], [2048, 256, 3]), ('force_torque_axis_cnns.left_ft.1.0.weight', 'force_torque_axis_cnns.left_ft.1.0.weight', [256, 1, 5], [256, 1, 25]), ('force_torque_axis_cnns.left_ft.1.2.weight', 'force_torque_axis_cnns.left_ft.1.2.weight', [2048, 256, 5], [2048, 256, 3]), ('force_torque_axis_cnns.left_ft.2.0.weight', 'force_torque_axis_cnns.left_ft.2.0.weight', [256, 1, 5], [256, 1, 25]), ('force_torque_axis_cnns.left_ft.2.2.weight', 'force_torque_axis_cnns.left_ft.2.2.weight', [2048, 256, 5], [2048, 256, 3]), ('force_torque_axis_cnns.left_ft.3.0.bias', None, [256], None), ('force_torque_axis_cnns.left_ft.3.0.weight', None, [256, 1, 5], None), ('force_torque_axis_cnns.left_ft.3.2.bias', None, [2048], None), ('force_torque_axis_cnns.left_ft.3.2.weight', None, [2048, 256, 5], None)] (3722044:train_pytorch.py:696)
+15:22:07.752 [W] Skipped 36 keys from checkpoint due to missing or shape mismatch; examples: [('force_torque_axis_cnns.left_ft.0.0.weight', 'force_torque_axis_cnns.left_ft.0.0.weight', [256, 1, 5], [256, 1, 25]), ('force_torque_axis_cnns.left_ft.0.2.weight', 'force_torque_axis_cnns.left_ft.0.2.weight', [2048, 256, 5], [2048, 256, 3]), ('force_torque_axis_cnns.left_ft.1.0.weight', 'force_torque_axis_cnns.left_ft.1.0.weight', [256, 1, 5], [256, 1, 25]), ('force_torque_axis_cnns.left_ft.1.2.weight', 'force_torque_axis_cnns.left_ft.1.2.weight', [2048, 256, 5], [2048, 256, 3]), ('force_torque_axis_cnns.left_ft.2.0.weight', 'force_torque_axis_cnns.left_ft.2.0.weight', [256, 1, 5], [256, 1, 25]), ('force_torque_axis_cnns.left_ft.2.2.weight', 'force_torque_axis_cnns.left_ft.2.2.weight', [2048, 256, 5], [2048, 256, 3]), ('force_torque_axis_cnns.left_ft.3.0.bias', None, [256], None), ('force_torque_axis_cnns.left_ft.3.0.weight', None, [256, 1, 5], None), ('force_torque_axis_cnns.left_ft.3.2.bias', None, [2048], None), ('force_torque_axis_cnns.left_ft.3.2.weight', None, [2048, 256, 5], None)] (305174:train_pytorch.py:696)
+15:22:16.096 [I] Loaded PyTorch weights from /work/gr41/r41000/openpi/checkpoints/pi0_ur3_robotiq_ft/sweet-cherry-23/40000/ (loaded_keys=789 missing=['paligemma_with_expert.paligemma.model.language_model.embed_tokens.weight', 'force_torque_axis_cnns.left_ft.0.0.weight', 'force_torque_axis_cnns.left_ft.0.2.weight', 'force_torque_axis_cnns.left_ft.1.0.weight', 'force_torque_axis_cnns.left_ft.1.2.weight', 'force_torque_axis_cnns.left_ft.2.0.weight', 'force_torque_axis_cnns.left_ft.2.2.weight', 'force_torque_axis_cnns.right_ft.0.0.weight', 'force_torque_axis_cnns.right_ft.0.2.weight', 'force_torque_axis_cnns.right_ft.1.0.weight', 'force_torque_axis_cnns.right_ft.1.2.weight', 'force_torque_axis_cnns.right_ft.2.0.weight', 'force_torque_axis_cnns.right_ft.2.2.weight'] unexpected=[], lora_enabled=False, skipped=36) (3722044:train_pytorch.py:698)
+15:22:16.096 [I] FT schedule steps: action_head=10000 no_cnn=60000 cnn_only=0                     (3722044:train_pytorch.py:719)
+15:22:16.246 [I] Step 40000 (before_loading_checkpoint): GPU memory - allocated: 14.15GB, reserved: 14.25GB, free: 0.11GB, peak_allocated: 14.15GB, peak_reserved: 20.72GB | DDP: rank=3, world_size=4 (3722044:train_pytorch.py:344)
+15:22:16.247 [I] Loading model state...                                                           (3722044:train_pytorch.py:259)
+15:22:17.262 [I] Loaded PyTorch weights from /work/gr41/r41000/openpi/checkpoints/pi0_ur3_robotiq_ft/sweet-cherry-23/40000/ (loaded_keys=789 missing=['paligemma_with_expert.paligemma.model.language_model.embed_tokens.weight', 'force_torque_axis_cnns.left_ft.0.0.weight', 'force_torque_axis_cnns.left_ft.0.2.weight', 'force_torque_axis_cnns.left_ft.1.0.weight', 'force_torque_axis_cnns.left_ft.1.2.weight', 'force_torque_axis_cnns.left_ft.2.0.weight', 'force_torque_axis_cnns.left_ft.2.2.weight', 'force_torque_axis_cnns.right_ft.0.0.weight', 'force_torque_axis_cnns.right_ft.0.2.weight', 'force_torque_axis_cnns.right_ft.1.0.weight', 'force_torque_axis_cnns.right_ft.1.2.weight', 'force_torque_axis_cnns.right_ft.2.0.weight', 'force_torque_axis_cnns.right_ft.2.2.weight'] unexpected=[], lora_enabled=False, skipped=36) (1050911:train_pytorch.py:698)
+15:22:17.262 [I] FT schedule steps: action_head=10000 no_cnn=60000 cnn_only=0                     (1050911:train_pytorch.py:719)
+15:22:17.307 [I] Loaded PyTorch weights from /work/gr41/r41000/openpi/checkpoints/pi0_ur3_robotiq_ft/sweet-cherry-23/40000/ (loaded_keys=789 missing=['paligemma_with_expert.paligemma.model.language_model.embed_tokens.weight', 'force_torque_axis_cnns.left_ft.0.0.weight', 'force_torque_axis_cnns.left_ft.0.2.weight', 'force_torque_axis_cnns.left_ft.1.0.weight', 'force_torque_axis_cnns.left_ft.1.2.weight', 'force_torque_axis_cnns.left_ft.2.0.weight', 'force_torque_axis_cnns.left_ft.2.2.weight', 'force_torque_axis_cnns.right_ft.0.0.weight', 'force_torque_axis_cnns.right_ft.0.2.weight', 'force_torque_axis_cnns.right_ft.1.0.weight', 'force_torque_axis_cnns.right_ft.1.2.weight', 'force_torque_axis_cnns.right_ft.2.0.weight', 'force_torque_axis_cnns.right_ft.2.2.weight'] unexpected=[], lora_enabled=False, skipped=36) (2024210:train_pytorch.py:698)
+15:22:17.307 [I] FT schedule steps: action_head=10000 no_cnn=60000 cnn_only=0                     (2024210:train_pytorch.py:719)
+15:22:17.412 [I] Step 40000 (before_loading_checkpoint): GPU memory - allocated: 14.15GB, reserved: 14.25GB, free: 0.11GB, peak_allocated: 14.15GB, peak_reserved: 20.72GB | DDP: rank=1, world_size=4 (1050911:train_pytorch.py:344)
+15:22:17.412 [I] Loading model state...                                                           (1050911:train_pytorch.py:259)
+15:22:17.457 [I] Step 40000 (before_loading_checkpoint): GPU memory - allocated: 14.15GB, reserved: 14.26GB, free: 0.11GB, peak_allocated: 14.15GB, peak_reserved: 20.73GB | DDP: rank=0, world_size=4 (2024210:train_pytorch.py:344)
+15:22:17.458 [I] Loading model state...                                                           (2024210:train_pytorch.py:259)
+15:22:19.007 [I] Loaded PyTorch weights from /work/gr41/r41000/openpi/checkpoints/pi0_ur3_robotiq_ft/sweet-cherry-23/40000/ (loaded_keys=789 missing=['paligemma_with_expert.paligemma.model.language_model.embed_tokens.weight', 'force_torque_axis_cnns.left_ft.0.0.weight', 'force_torque_axis_cnns.left_ft.0.2.weight', 'force_torque_axis_cnns.left_ft.1.0.weight', 'force_torque_axis_cnns.left_ft.1.2.weight', 'force_torque_axis_cnns.left_ft.2.0.weight', 'force_torque_axis_cnns.left_ft.2.2.weight', 'force_torque_axis_cnns.right_ft.0.0.weight', 'force_torque_axis_cnns.right_ft.0.2.weight', 'force_torque_axis_cnns.right_ft.1.0.weight', 'force_torque_axis_cnns.right_ft.1.2.weight', 'force_torque_axis_cnns.right_ft.2.0.weight', 'force_torque_axis_cnns.right_ft.2.2.weight'] unexpected=[], lora_enabled=False, skipped=36) (305174:train_pytorch.py:698)
+15:22:19.007 [I] FT schedule steps: action_head=10000 no_cnn=60000 cnn_only=0                     (305174:train_pytorch.py:719)
+15:22:19.155 [I] Step 40000 (before_loading_checkpoint): GPU memory - allocated: 14.13GB, reserved: 14.26GB, free: 0.13GB, peak_allocated: 14.13GB, peak_reserved: 18.19GB | DDP: rank=2, world_size=4 (305174:train_pytorch.py:344)
+15:22:19.155 [I] Loading model state...                                                           (305174:train_pytorch.py:259)
+Traceback (most recent call last):
+  File "/work/gr41/r41000/openpi/scripts/train_pytorch.py", line 1148, in <module>
+    main()
+  File "/work/gr41/r41000/openpi/scripts/train_pytorch.py", line 1144, in main
+    train_loop(config)
+  File "/work/gr41/r41000/openpi/scripts/train_pytorch.py", line 861, in train_loop
+    global_step = load_checkpoint(model, optim, run_checkpoint_dir, device)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/work/gr41/r41000/openpi/scripts/train_pytorch.py", line 264, in load_checkpoint
+    safetensors.torch.load_model(model_to_load, safetensors_path, device=str(device))
+  File "/work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/safetensors/torch.py", line 205, in load_model
+    missing, unexpected = model.load_state_dict(state_dict, strict=False)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/nn/modules/module.py", line 2584, in load_state_dict
+    raise RuntimeError(
+RuntimeError: Error(s) in loading state_dict for PI0Pytorch:
+	size mismatch for force_torque_axis_cnns.left_ft.0.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+	size mismatch for force_torque_axis_cnns.left_ft.0.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+	size mismatch for force_torque_axis_cnns.left_ft.1.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+	size mismatch for force_torque_axis_cnns.left_ft.1.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+	size mismatch for force_torque_axis_cnns.left_ft.2.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+	size mismatch for force_torque_axis_cnns.left_ft.2.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+	size mismatch for force_torque_axis_cnns.right_ft.0.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+	size mismatch for force_torque_axis_cnns.right_ft.0.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+	size mismatch for force_torque_axis_cnns.right_ft.1.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+	size mismatch for force_torque_axis_cnns.right_ft.1.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+	size mismatch for force_torque_axis_cnns.right_ft.2.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+	size mismatch for force_torque_axis_cnns.right_ft.2.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+[rank0]: Traceback (most recent call last):
+[rank0]:   File "/work/gr41/r41000/openpi/scripts/train_pytorch.py", line 1148, in <module>
+[rank0]:     main()
+[rank0]:   File "/work/gr41/r41000/openpi/scripts/train_pytorch.py", line 1144, in main
+[rank0]:     train_loop(config)
+[rank0]:   File "/work/gr41/r41000/openpi/scripts/train_pytorch.py", line 861, in train_loop
+[rank0]:     global_step = load_checkpoint(model, optim, run_checkpoint_dir, device)
+[rank0]:                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/work/gr41/r41000/openpi/scripts/train_pytorch.py", line 264, in load_checkpoint
+[rank0]:     safetensors.torch.load_model(model_to_load, safetensors_path, device=str(device))
+[rank0]:   File "/work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/safetensors/torch.py", line 205, in load_model
+[rank0]:     missing, unexpected = model.load_state_dict(state_dict, strict=False)
+[rank0]:                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank0]:   File "/work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/nn/modules/module.py", line 2584, in load_state_dict
+[rank0]:     raise RuntimeError(
+[rank0]: RuntimeError: Error(s) in loading state_dict for PI0Pytorch:
+[rank0]: 	size mismatch for force_torque_axis_cnns.left_ft.0.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+[rank0]: 	size mismatch for force_torque_axis_cnns.left_ft.0.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+[rank0]: 	size mismatch for force_torque_axis_cnns.left_ft.1.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+[rank0]: 	size mismatch for force_torque_axis_cnns.left_ft.1.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+[rank0]: 	size mismatch for force_torque_axis_cnns.left_ft.2.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+[rank0]: 	size mismatch for force_torque_axis_cnns.left_ft.2.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+[rank0]: 	size mismatch for force_torque_axis_cnns.right_ft.0.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+[rank0]: 	size mismatch for force_torque_axis_cnns.right_ft.0.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+[rank0]: 	size mismatch for force_torque_axis_cnns.right_ft.1.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+[rank0]: 	size mismatch for force_torque_axis_cnns.right_ft.1.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+[rank0]: 	size mismatch for force_torque_axis_cnns.right_ft.2.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+[rank0]: 	size mismatch for force_torque_axis_cnns.right_ft.2.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+[rank1]: Traceback (most recent call last):
+[rank1]:   File "/work/gr41/r41000/openpi/scripts/train_pytorch.py", line 1148, in <module>
+[rank1]:     main()
+[rank1]:   File "/work/gr41/r41000/openpi/scripts/train_pytorch.py", line 1144, in main
+[rank1]:     train_loop(config)
+[rank1]:   File "/work/gr41/r41000/openpi/scripts/train_pytorch.py", line 861, in train_loop
+[rank1]:     global_step = load_checkpoint(model, optim, run_checkpoint_dir, device)
+[rank1]:                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/work/gr41/r41000/openpi/scripts/train_pytorch.py", line 264, in load_checkpoint
+[rank1]:     safetensors.torch.load_model(model_to_load, safetensors_path, device=str(device))
+[rank1]:   File "/work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/safetensors/torch.py", line 205, in load_model
+[rank1]:     missing, unexpected = model.load_state_dict(state_dict, strict=False)
+[rank1]:                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank1]:   File "/work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/nn/modules/module.py", line 2584, in load_state_dict
+[rank1]:     raise RuntimeError(
+[rank1]: RuntimeError: Error(s) in loading state_dict for PI0Pytorch:
+[rank1]: 	size mismatch for force_torque_axis_cnns.left_ft.0.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+[rank1]: 	size mismatch for force_torque_axis_cnns.left_ft.0.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+[rank1]: 	size mismatch for force_torque_axis_cnns.left_ft.1.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+[rank1]: 	size mismatch for force_torque_axis_cnns.left_ft.1.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+[rank1]: 	size mismatch for force_torque_axis_cnns.left_ft.2.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+[rank1]: 	size mismatch for force_torque_axis_cnns.left_ft.2.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+[rank1]: 	size mismatch for force_torque_axis_cnns.right_ft.0.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+[rank1]: 	size mismatch for force_torque_axis_cnns.right_ft.0.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+[rank1]: 	size mismatch for force_torque_axis_cnns.right_ft.1.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+[rank1]: 	size mismatch for force_torque_axis_cnns.right_ft.1.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+[rank1]: 	size mismatch for force_torque_axis_cnns.right_ft.2.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+[rank1]: 	size mismatch for force_torque_axis_cnns.right_ft.2.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+[rank1]:[I126 15:22:23.658253372 ProcessGroupNCCL.cpp:1246] [PG ID 0 PG GUID 0(default_pg) Rank 1] ProcessGroupNCCL destructor entered.
+[rank1]:[W126 15:22:23.658285212 ProcessGroupNCCL.cpp:1250] Warning: WARNING: process group has NOT been destroyed before we destruct ProcessGroupNCCL. On normal program exit, the application should call destroy_process_group to ensure that any pending NCCL operations have finished in this process. In rare cases this process can exit before this point and block the progress of another member of the process group. This constraint has always been present,  but this warning has only been added since PyTorch 2.4 (function operator())
+[rank1]:[I126 15:22:23.658293628 ProcessGroupNCCL.cpp:1230] [PG ID 0 PG GUID 0(default_pg) Rank 1] Launching ProcessGroupNCCL abort asynchrounously.
+[rank1]:[I126 15:22:23.659002175 ProcessGroupNCCL.cpp:1184] [PG ID 0 PG GUID 0(default_pg) Rank 1] ProcessGroupNCCL destroying ncclComm_ 0xaaaacfc8dfb0 on CUDA device: 0
+[rank1]:[I126 15:22:23.659017695 NCCLUtils.hpp:406] Aborting ncclComm_ 0xaaaacfc8dfb0 with reason: No abort reason provided.
+[1;34mwandb[0m: 
+[1;34mwandb[0m: 🚀 View run [33msweet-cherry-23[0m at: [34m[0m
+[1;34mwandb[0m: Find logs at: [1;35mwandb/run-20260126_152113-4z8rb6ac/logs[0m
+[rank1]:[I126 15:22:23.173405942 ProcessGroupNCCL.cpp:1197] [PG ID 0 PG GUID 0(default_pg) Rank 1] ProcessGroupNCCL destroyed  communicator on CUDA device: 0
+[rank1]:[I126 15:22:23.173458262 ProcessGroupNCCL.cpp:1116] [PG ID 0 PG GUID 0(default_pg) Rank 1] future is successfully executed for: ProcessGroup abort
+[rank1]:[I126 15:22:23.173467318 ProcessGroupNCCL.cpp:1237] [PG ID 0 PG GUID 0(default_pg) Rank 1] ProcessGroupNCCL aborts successfully.
+[rank1]:[I126 15:22:23.173503062 ProcessGroupNCCL.cpp:1267] [PG ID 0 PG GUID 0(default_pg) Rank 1] ProcessGroupNCCL watchdog thread joined.
+[rank1]:[I126 15:22:23.173508118 ProcessGroupNCCL.cpp:1271] [PG ID 0 PG GUID 0(default_pg) Rank 1] ProcessGroupNCCL heart beat monitor thread joined.
+[rank3]: Traceback (most recent call last):
+[rank3]:   File "/work/gr41/r41000/openpi/scripts/train_pytorch.py", line 1148, in <module>
+[rank3]:     main()
+[rank3]:   File "/work/gr41/r41000/openpi/scripts/train_pytorch.py", line 1144, in main
+[rank3]:     train_loop(config)
+[rank3]:   File "/work/gr41/r41000/openpi/scripts/train_pytorch.py", line 861, in train_loop
+[rank3]:     global_step = load_checkpoint(model, optim, run_checkpoint_dir, device)
+[rank3]:                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/work/gr41/r41000/openpi/scripts/train_pytorch.py", line 264, in load_checkpoint
+[rank3]:     safetensors.torch.load_model(model_to_load, safetensors_path, device=str(device))
+[rank3]:   File "/work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/safetensors/torch.py", line 205, in load_model
+[rank3]:     missing, unexpected = model.load_state_dict(state_dict, strict=False)
+[rank3]:                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank3]:   File "/work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/nn/modules/module.py", line 2584, in load_state_dict
+[rank3]:     raise RuntimeError(
+[rank3]: RuntimeError: Error(s) in loading state_dict for PI0Pytorch:
+[rank3]: 	size mismatch for force_torque_axis_cnns.left_ft.0.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+[rank3]: 	size mismatch for force_torque_axis_cnns.left_ft.0.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+[rank3]: 	size mismatch for force_torque_axis_cnns.left_ft.1.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+[rank3]: 	size mismatch for force_torque_axis_cnns.left_ft.1.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+[rank3]: 	size mismatch for force_torque_axis_cnns.left_ft.2.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+[rank3]: 	size mismatch for force_torque_axis_cnns.left_ft.2.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+[rank3]: 	size mismatch for force_torque_axis_cnns.right_ft.0.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+[rank3]: 	size mismatch for force_torque_axis_cnns.right_ft.0.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+[rank3]: 	size mismatch for force_torque_axis_cnns.right_ft.1.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+[rank3]: 	size mismatch for force_torque_axis_cnns.right_ft.1.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+[rank3]: 	size mismatch for force_torque_axis_cnns.right_ft.2.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+[rank3]: 	size mismatch for force_torque_axis_cnns.right_ft.2.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+E0126 15:22:24.325000 1050846 torch/distributed/elastic/multiprocessing/api.py:869] failed (exitcode: 1) local_rank: 0 (pid: 1050911) of binary: /work/gr41/r41000/openpi/.venv/bin/python3
+Traceback (most recent call last):
+  File "/work/gr41/r41000/openpi/.venv/bin/torchrun", line 10, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 355, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/distributed/run.py", line 919, in main
+    run(args)
+  File "/work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/distributed/run.py", line 910, in run
+    elastic_launch(
+  File "/work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 138, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 269, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+scripts/train_pytorch.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-01-26_15:22:24
+  host      : mg1066
+  rank      : 1 (local_rank: 0)
+  exitcode  : 1 (pid: 1050911)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+--------------------------------------------------------------------------
+Primary job  terminated normally, but 1 process returned
+a non-zero exit code. Per user-direction, the job has been aborted.
+--------------------------------------------------------------------------
+E0126 15:22:24.620000 2024143 torch/distributed/elastic/multiprocessing/api.py:869] failed (exitcode: 1) local_rank: 0 (pid: 2024210) of binary: /work/gr41/r41000/openpi/.venv/bin/python3
+Traceback (most recent call last):
+  File "/work/gr41/r41000/openpi/.venv/bin/torchrun", line 10, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 355, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/distributed/run.py", line 919, in main
+    run(args)
+  File "/work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/distributed/run.py", line 910, in run
+    elastic_launch(
+  File "/work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 138, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 269, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+scripts/train_pytorch.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-01-26_15:22:24
+  host      : mg1023
+  rank      : 0 (local_rank: 0)
+  exitcode  : 1 (pid: 2024210)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+[I126 15:22:24.096853424 TCPStoreLibUvBackend.cpp:1128] [c10d] uv_loop_close failed with:-16 errn:EBUSY desc:resource busy or locked
+[I126 15:22:24.096898992 TCPStoreLibUvBackend.cpp:1138] [c10d] uv_loop cleanup finished.
+[rank3]:[I126 15:22:24.138963106 ProcessGroupNCCL.cpp:1246] [PG ID 0 PG GUID 0(default_pg) Rank 3] ProcessGroupNCCL destructor entered.
+[rank3]:[W126 15:22:24.138997890 ProcessGroupNCCL.cpp:1250] Warning: WARNING: process group has NOT been destroyed before we destruct ProcessGroupNCCL. On normal program exit, the application should call destroy_process_group to ensure that any pending NCCL operations have finished in this process. In rare cases this process can exit before this point and block the progress of another member of the process group. This constraint has always been present,  but this warning has only been added since PyTorch 2.4 (function operator())
+[rank2]: Traceback (most recent call last):
+[rank2]:   File "/work/gr41/r41000/openpi/scripts/train_pytorch.py", line 1148, in <module>
+[rank2]:     main()
+[rank2]:   File "/work/gr41/r41000/openpi/scripts/train_pytorch.py", line 1144, in main
+[rank2]:     train_loop(config)
+[rank2]:   File "/work/gr41/r41000/openpi/scripts/train_pytorch.py", line 861, in train_loop
+[rank2]:     global_step = load_checkpoint(model, optim, run_checkpoint_dir, device)
+[rank2]:                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/work/gr41/r41000/openpi/scripts/train_pytorch.py", line 264, in load_checkpoint
+[rank2]:     safetensors.torch.load_model(model_to_load, safetensors_path, device=str(device))
+[rank2]:   File "/work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/safetensors/torch.py", line 205, in load_model
+[rank2]:     missing, unexpected = model.load_state_dict(state_dict, strict=False)
+[rank2]:                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[rank2]:   File "/work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/nn/modules/module.py", line 2584, in load_state_dict
+[rank2]:     raise RuntimeError(
+[rank2]: RuntimeError: Error(s) in loading state_dict for PI0Pytorch:
+[rank2]: 	size mismatch for force_torque_axis_cnns.left_ft.0.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+[rank2]: 	size mismatch for force_torque_axis_cnns.left_ft.0.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+[rank2]: 	size mismatch for force_torque_axis_cnns.left_ft.1.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+[rank2]: 	size mismatch for force_torque_axis_cnns.left_ft.1.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+[rank2]: 	size mismatch for force_torque_axis_cnns.left_ft.2.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+[rank2]: 	size mismatch for force_torque_axis_cnns.left_ft.2.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+[rank2]: 	size mismatch for force_torque_axis_cnns.right_ft.0.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+[rank2]: 	size mismatch for force_torque_axis_cnns.right_ft.0.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+[rank2]: 	size mismatch for force_torque_axis_cnns.right_ft.1.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+[rank2]: 	size mismatch for force_torque_axis_cnns.right_ft.1.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+[rank2]: 	size mismatch for force_torque_axis_cnns.right_ft.2.0.weight: copying a param with shape torch.Size([256, 1, 5]) from checkpoint, the shape in current model is torch.Size([256, 1, 25]).
+[rank2]: 	size mismatch for force_torque_axis_cnns.right_ft.2.2.weight: copying a param with shape torch.Size([2048, 256, 5]) from checkpoint, the shape in current model is torch.Size([2048, 256, 3]).
+[rank3]:[I126 15:22:24.139006594 ProcessGroupNCCL.cpp:1230] [PG ID 0 PG GUID 0(default_pg) Rank 3] Launching ProcessGroupNCCL abort asynchrounously.
+[rank3]:[I126 15:22:24.139635555 ProcessGroupNCCL.cpp:1184] [PG ID 0 PG GUID 0(default_pg) Rank 3] ProcessGroupNCCL destroying ncclComm_ 0xaaab26d40180 on CUDA device: 0
+[rank3]:[I126 15:22:24.139650179 NCCLUtils.hpp:406] Aborting ncclComm_ 0xaaab26d40180 with reason: No abort reason provided.
+[rank3]:[I126 15:22:25.651330909 ProcessGroupNCCL.cpp:1197] [PG ID 0 PG GUID 0(default_pg) Rank 3] ProcessGroupNCCL destroyed  communicator on CUDA device: 0
+[rank3]:[I126 15:22:25.651386269 ProcessGroupNCCL.cpp:1116] [PG ID 0 PG GUID 0(default_pg) Rank 3] future is successfully executed for: ProcessGroup abort
+[rank3]:[I126 15:22:25.651400061 ProcessGroupNCCL.cpp:1237] [PG ID 0 PG GUID 0(default_pg) Rank 3] ProcessGroupNCCL aborts successfully.
+[rank3]:[I126 15:22:25.651429278 ProcessGroupNCCL.cpp:1267] [PG ID 0 PG GUID 0(default_pg) Rank 3] ProcessGroupNCCL watchdog thread joined.
+[rank3]:[I126 15:22:25.651433694 ProcessGroupNCCL.cpp:1271] [PG ID 0 PG GUID 0(default_pg) Rank 3] ProcessGroupNCCL heart beat monitor thread joined.
+[rank2]:[I126 15:22:25.369313786 ProcessGroupNCCL.cpp:1246] [PG ID 0 PG GUID 0(default_pg) Rank 2] ProcessGroupNCCL destructor entered.
+[rank2]:[W126 15:22:25.369342490 ProcessGroupNCCL.cpp:1250] Warning: WARNING: process group has NOT been destroyed before we destruct ProcessGroupNCCL. On normal program exit, the application should call destroy_process_group to ensure that any pending NCCL operations have finished in this process. In rare cases this process can exit before this point and block the progress of another member of the process group. This constraint has always been present,  but this warning has only been added since PyTorch 2.4 (function operator())
+[rank2]:[I126 15:22:25.369354746 ProcessGroupNCCL.cpp:1230] [PG ID 0 PG GUID 0(default_pg) Rank 2] Launching ProcessGroupNCCL abort asynchrounously.
+[rank2]:[I126 15:22:25.369981981 ProcessGroupNCCL.cpp:1184] [PG ID 0 PG GUID 0(default_pg) Rank 2] ProcessGroupNCCL destroying ncclComm_ 0xaaab2cc90d80 on CUDA device: 0
+[rank2]:[I126 15:22:25.369992509 NCCLUtils.hpp:406] Aborting ncclComm_ 0xaaab2cc90d80 with reason: No abort reason provided.
+[rank2]:[I126 15:22:26.884090328 ProcessGroupNCCL.cpp:1197] [PG ID 0 PG GUID 0(default_pg) Rank 2] ProcessGroupNCCL destroyed  communicator on CUDA device: 0
+[rank2]:[I126 15:22:26.884152600 ProcessGroupNCCL.cpp:1116] [PG ID 0 PG GUID 0(default_pg) Rank 2] future is successfully executed for: ProcessGroup abort
+[rank2]:[I126 15:22:26.884164120 ProcessGroupNCCL.cpp:1237] [PG ID 0 PG GUID 0(default_pg) Rank 2] ProcessGroupNCCL aborts successfully.
+[rank2]:[I126 15:22:26.884196536 ProcessGroupNCCL.cpp:1267] [PG ID 0 PG GUID 0(default_pg) Rank 2] ProcessGroupNCCL watchdog thread joined.
+[rank2]:[I126 15:22:26.884199224 ProcessGroupNCCL.cpp:1271] [PG ID 0 PG GUID 0(default_pg) Rank 2] ProcessGroupNCCL heart beat monitor thread joined.
+E0126 15:22:25.820000 3721979 torch/distributed/elastic/multiprocessing/api.py:869] failed (exitcode: 1) local_rank: 0 (pid: 3722044) of binary: /work/gr41/r41000/openpi/.venv/bin/python3
+Traceback (most recent call last):
+  File "/work/gr41/r41000/openpi/.venv/bin/torchrun", line 10, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/distributed/elastic/multiprocessing/errors/__init__.py", line 355, in wrapper
+    return f(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^
+  File "/work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/distributed/run.py", line 919, in main
+    run(args)
+  File "/work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/distributed/run.py", line 910, in run
+    elastic_launch(
+  File "/work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 138, in __call__
+    return launch_agent(self._config, self._entrypoint, list(args))
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/work/gr41/r41000/openpi/.venv/lib/python3.11/site-packages/torch/distributed/launcher/api.py", line 269, in launch_agent
+    raise ChildFailedError(
+torch.distributed.elastic.multiprocessing.errors.ChildFailedError: 
+============================================================
+scripts/train_pytorch.py FAILED
+------------------------------------------------------------
+Failures:
+  <NO_OTHER_FAILURES>
+------------------------------------------------------------
+Root Cause (first observed failure):
+[0]:
+  time      : 2026-01-26_15:22:25
+  host      : mg1079
+  rank      : 3 (local_rank: 0)
+  exitcode  : 1 (pid: 3722044)
+  error_file: <N/A>
+  traceback : To enable traceback see: https://pytorch.org/docs/stable/elastic/errors.html
+============================================================
+--------------------------------------------------------------------------
+mpiexec detected that one or more processes exited with non-zero status, thus causing
+the job to be terminated. The first process to do so was:
+
+  Process name: [[56979,1],1]
+  Exit code:    1
+--------------------------------------------------------------------------

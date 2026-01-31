@@ -1,10 +1,10 @@
 #!/bin/bash
 #PBS -q regular-g
 #PBS -l select=4:ncpus=72:mpiprocs=1
-#PBS -l walltime=12:00:00
+#PBS -l walltime=24:00:00
 #PBS -W group_list=gr41
 #PBS -j oe
-#PBS -N end2end
+
 module purge
 module load nvidia nv-hpcx
 module load hdf5
@@ -38,7 +38,7 @@ fi
 # ランクごとにGPU/torch確認（デバッグ用）
 mpiexec -np ${NNODES} --map-by ppr:1:node:PE=${OMP_NUM_THREADS} --bind-to core --report-bindings --hostfile "$PBS_NODEFILE" \
   bash -lc "module purge; module load nvidia nv-hpcx; module load hdf5; \
-            nvidia-smi --query-gpu=name,uuid --format=csv,noheader; \
+            cd "$PBS_O_WORKDIR"; \
             source .venv/bin/activate; \
             python -c 'import os, socket, torch; print(socket.gethostname(), torch.cuda.is_available(), torch.cuda.device_count(), os.cpu_count(), len(os.sched_getaffinity(0)))'"
 
@@ -49,7 +49,7 @@ mpiexec -np ${NNODES} --map-by ppr:1:node:PE=${OMP_NUM_THREADS} --bind-to core -
   -x CUDA_VISIBLE_DEVICES -x PATH -x LD_LIBRARY_PATH -x WANDB_MODE -x WANDB_API_KEY \
   bash -lc "
     module purge; module load nvidia nv-hpcx; module load hdf5
-    cd $PBS_O_WORKDIR
+    cd "$PBS_O_WORKDIR"
     source .venv/bin/activate
     NODE_RANK=\$OMPI_COMM_WORLD_RANK
     export CUDA_DEVICE_ORDER=PCI_BUS_ID
@@ -61,12 +61,14 @@ mpiexec -np ${NNODES} --map-by ppr:1:node:PE=${OMP_NUM_THREADS} --bind-to core -
       --master_addr=${MASTER_ADDR} \
       --master_port=${MASTER_PORT} \
       scripts/train_pytorch.py pi0_ur3_robotiq_ft \
-        --exp_name worldly-hill-69 \
-        --resume \
+        --exp_name new \
         --batch_size 128 \
             --num_workers 16 \
         --no-pytorch-gradient-checkpointing \
-            --num_train_steps 50000 \
-            --pytorch_weight_path /work/gr41/r41000/openpi/checkpoints/pi0_ur3_robotiq_ft/worldly-hill-69/40000 \
-        --save_interval 10000
+            --ft_action_head_steps 0 \
+            --ft_no_cnn_steps 0 \
+            --ft_cnn_only_steps 5000 \
+            --num_train_steps 40000 \
+            --pytorch_weight_path /work/gr41/r41000/openpi/checkpoints/pi0_ur3_robotiq_ft/sweet-cherry-23/20000/ \
+        --save_interval 5000
   "

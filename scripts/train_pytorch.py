@@ -556,7 +556,8 @@ def train_loop(config: _config.TrainConfig):
         model_cfg = config.model
         # Update dtype to match pytorch_training_precision
         object.__setattr__(model_cfg, "dtype", config.pytorch_training_precision)
-
+    if "sweet-cherry-23" in run_name:
+        object.__setattr__(model_cfg, "tmp_sweet", True)
     model = openpi.models_pytorch.pi0_pytorch.PI0Pytorch(model_cfg).to(device)
 
     # Helper: filter a loaded state_dict so only parameters with matching

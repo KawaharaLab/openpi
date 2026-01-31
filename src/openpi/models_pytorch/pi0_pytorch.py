@@ -102,23 +102,42 @@ class PI0Pytorch(nn.Module):
 
         # Project per-axis force/torque time series with per-sensor & per-axis params.
         ft_hidden = 256
-        k = 25
-        self.force_torque_axis_cnns = nn.ModuleDict(
-            {
-                sensor: nn.ModuleList(
-                    [
-                        nn.Sequential(
-                            nn.Conv1d(1, ft_hidden, kernel_size=k, padding=0, stride=15),
-                            nn.SiLU(),
-                            nn.Conv1d(ft_hidden, paligemma_config.width, kernel_size=3, padding=0, stride=3),
-                            nn.SiLU(),
-                        )
-                        for _ in range(3)
-                    ]
-                )
-                for sensor in ("left_ft", "right_ft")
-            }
-        )
+        if config.tmp_sweet:
+            self.force_torque_axis_cnns = nn.ModuleDict(
+                {
+                    sensor: nn.ModuleList(
+                        [
+                            nn.Sequential(
+                                nn.Conv1d(1, ft_hidden, kernel_size=5, padding=2),
+                                nn.SiLU(),
+                                nn.Conv1d(ft_hidden, paligemma_config.width, kernel_size=5, padding=2),
+                                nn.SiLU(),
+                                nn.AdaptiveAvgPool1d(1),
+                            )
+                            for _ in range(6)
+                        ]
+                    )
+                    for sensor in ("left_ft", "right_ft")
+                }
+            )
+        else:
+            k = 25
+            self.force_torque_axis_cnns = nn.ModuleDict(
+                {
+                    sensor: nn.ModuleList(
+                        [
+                            nn.Sequential(
+                                nn.Conv1d(1, ft_hidden, kernel_size=k, padding=0, stride=15),
+                                nn.SiLU(),
+                                nn.Conv1d(ft_hidden, paligemma_config.width, kernel_size=3, padding=0, stride=3),
+                                nn.SiLU(),
+                            )
+                            for _ in range(3)
+                        ]
+                    )
+                    for sensor in ("left_ft", "right_ft")
+                }
+            )
 
         self.action_in_proj = nn.Linear(action_dim, action_expert_config.width)
         self.action_out_proj = nn.Linear(action_expert_config.width, action_dim)
@@ -244,6 +263,7 @@ class PI0Pytorch(nn.Module):
 
             embs.append(img_emb)
             pad_masks.append(img_mask[:, None].expand(bsize, num_img_embs))
+            print("img_emb shape:", img_emb.shape)
 
             # Create attention masks so that image tokens attend to each other
             att_masks += [0] * num_img_embs
@@ -255,7 +275,7 @@ class PI0Pytorch(nn.Module):
             return lang_emb * math.sqrt(lang_emb_dim)
 
         lang_emb = self._apply_checkpoint(lang_embed_func, lang_tokens)
-
+        print("lang_emb shape:", lang_emb.shape)
         embs.append(lang_emb)
         pad_masks.append(lang_masks)
         # full attention between image and language inputs
@@ -300,6 +320,7 @@ class PI0Pytorch(nn.Module):
                     axis_embs.append(axis_out)
 
                 ft_emb = torch.cat(axis_embs, dim=1)  # (B, 3 * L_out, d)
+                print(f"{key} ft_emb shape:", ft_emb.shape)
                 embs.append(ft_emb)
 
                 sensor_mask = force_torque_masks.get(key)

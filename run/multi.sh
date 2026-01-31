@@ -1,9 +1,10 @@
 #!/bin/bash
 #PBS -q regular-g
 #PBS -l select=4:ncpus=72:mpiprocs=1
-#PBS -l walltime=24:00:00
+#PBS -l walltime=20:00:00
 #PBS -W group_list=gr41
 #PBS -j oe
+#PBS -N encoder
 
 module purge
 module load nvidia nv-hpcx
@@ -65,8 +66,9 @@ mpiexec -np ${NNODES} --map-by ppr:1:node:PE=${OMP_NUM_THREADS} --bind-to core -
         --batch_size 128 \
             --num_workers 16 \
         --no-pytorch-gradient-checkpointing \
-            --freeze_pretrained_steps 10000 \
-            --num_train_steps 40000 \
+            --ft_action_head_steps 0 \
+            --ft_cnn_only_steps 30000 \
+            --num_train_steps 30000 \
+            --pytorch_weight_path /work/gr41/r41000/openpi/checkpoints/pi0_ur3_robotiq_ft/sweet-cherry-23/20000/ \
         --save_interval 10000 \
-        --ft_mask 
   "
