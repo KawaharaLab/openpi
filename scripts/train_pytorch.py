@@ -556,8 +556,6 @@ def train_loop(config: _config.TrainConfig):
         model_cfg = config.model
         # Update dtype to match pytorch_training_precision
         object.__setattr__(model_cfg, "dtype", config.pytorch_training_precision)
-    if "sweet-cherry-23" in run_name:
-        object.__setattr__(model_cfg, "tmp_sweet", True)
     model = openpi.models_pytorch.pi0_pytorch.PI0Pytorch(model_cfg).to(device)
 
     # Helper: filter a loaded state_dict so only parameters with matching
@@ -760,6 +758,7 @@ def train_loop(config: _config.TrainConfig):
             "action_out_proj",
             "state_proj",
             "force_torque_axis_cnns",
+            "force_torque_axis_mlps",
             "force_torque_patch_encoders",
             "force_torque_cnns",
         }
@@ -775,7 +774,12 @@ def train_loop(config: _config.TrainConfig):
         trainable_params = frozen_params = 0
         for name, param in base_model.named_parameters():
             root = name.split(".")[0]
-            is_ft = root in {"force_torque_cnns", "force_torque_axis_cnns", "force_torque_patch_encoders"}
+            is_ft = root in {
+                "force_torque_cnns",
+                "force_torque_axis_cnns",
+                "force_torque_axis_mlps",
+                "force_torque_patch_encoders",
+            }
             is_action_head = root in {"action_in_proj", "action_out_proj", "state_proj"}
 
             if ft_phase == "ft_action_head_only":
