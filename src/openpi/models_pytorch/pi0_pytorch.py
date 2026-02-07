@@ -100,21 +100,16 @@ class PI0Pytorch(nn.Module):
             precision=config.dtype,
         )
 
-        # Project per-axis force/torque time series with per-sensor & per-axis params.
-        # Each axis is projected to a single token via a simple MLP.
+        # Project per-sensor force/torque time series (all axes) to a single token via a simple MLP.
+        # Supports 6-axis (force+torque) inputs; 3-axis inputs are zero-padded to 6.
         ft_hidden = 256
-        self.force_torque_axis_mlps = nn.ModuleDict(
+        self.force_torque_sensor_mlps = nn.ModuleDict(
             {
-                sensor: nn.ModuleList(
-                    [
-                        nn.Sequential(
-                            nn.Linear(_model_ft.FT_HORIZON, ft_hidden),
-                            nn.SiLU(),
-                            nn.Linear(ft_hidden, paligemma_config.width),
-                            nn.SiLU(),
-                        )
-                        for _ in range(3)
-                    ]
+                sensor: nn.Sequential(
+                    nn.Linear(6 * _model_ft.FT_HORIZON, ft_hidden),
+                    nn.SiLU(),
+                    nn.Linear(ft_hidden, paligemma_config.width),
+                    nn.SiLU(),
                 )
                 for sensor in ("left_ft", "right_ft")
             }
@@ -271,12 +266,13 @@ class PI0Pytorch(nn.Module):
 
                 bsize, horizon, channels = ft.shape
 
-                # Accept 6 channels by slicing the first 3; otherwise require exactly 3.
-                if channels == 6:
-                    ft = ft[..., :3]
-                    channels = 3
-                if channels != 3:
-                    raise ValueError(f"Expected force/torque tensor with 3 channels (or 6 to slice), got {channels}")
+                # Accept 3 or 6 channels. If 3, zero-pad to 6 for the shared MLP input size.
+                if channels not in (3, 6):
+                    raise ValueError(f"Expected force/torque tensor with 3 or 6 channels, got {channels}")
+                if channels == 3:
+                    pad = torch.zeros(bsize, horizon, 3, dtype=ft.dtype, device=ft.device)
+                    ft = torch.cat([ft, pad], dim=2)
+                    channels = 6
 
                 if horizon != _model_ft.FT_HORIZON:
                     if horizon > _model_ft.FT_HORIZON:
@@ -286,30 +282,26 @@ class PI0Pytorch(nn.Module):
                     else:
                         raise ValueError(f"Expected force/torque horizon {_model_ft.FT_HORIZON}, got {horizon}")
 
-                # Apply per-axis CNN for this sensor: each axis keeps its own parameters.
-                if key not in self.force_torque_axis_mlps:
-                    raise ValueError(f"Unexpected force/torque key '{key}', expected one of {list(self.force_torque_axis_mlps.keys())}")
+                # Apply per-sensor MLP: all axes -> single token.
+                if key not in self.force_torque_sensor_mlps:
+                    raise ValueError(
+                        f"Unexpected force/torque key '{key}', expected one of {list(self.force_torque_sensor_mlps.keys())}"
+                    )
 
-                ft_axes = ft.transpose(1, 2)  # (B, 3, H)
-                axis_embs = []
-                for axis in range(3):
-                    axis_input = ft_axes[:, axis, :]  # (B, H)
-                    axis_out = self.force_torque_axis_mlps[key][axis](axis_input)  # (B, d)
-                    axis_out = axis_out[:, None, :]  # (B, 1, d)
-                    axis_embs.append(axis_out)
-
-                ft_emb = torch.cat(axis_embs, dim=1)  # (B, 3, d)
+                ft_flat = ft.reshape(bsize, -1)  # (B, 6 * H)
+                ft_out = self.force_torque_sensor_mlps[key](ft_flat)  # (B, d)
+                ft_emb = ft_out[:, None, :]  # (B, 1, d)
                 embs.append(ft_emb)
 
                 sensor_mask = force_torque_masks.get(key)
                 if sensor_mask is None:
                     sensor_mask = torch.ones(bsize, dtype=torch.bool, device=ft.device)
                 sensor_mask = sensor_mask.to(dtype=torch.bool, device=ft.device)
-                L_out = axis_embs[0].shape[1]
-                sensor_mask = sensor_mask[:, None, None].expand(bsize, 3, L_out).reshape(bsize, 3 * L_out)
+                L_out = 1
+                sensor_mask = sensor_mask[:, None].expand(bsize, L_out)
                 pad_masks.append(sensor_mask)
 
-                att_masks += [0] * (3 * L_out)
+                att_masks += [0] * L_out
 
         embs = torch.cat(embs, dim=1)
         pad_masks = torch.cat(pad_masks, dim=1)

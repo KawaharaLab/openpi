@@ -432,22 +432,22 @@ def train_loop(config: _config.TrainConfig):
     run_name: str | None = None
     resuming = False
 
-    if config.resume:
-        if not config.exp_name:
-            raise ValueError("--exp_name must be set when resuming to identify the run directory.")
-        run_name = config.exp_name
-        run_checkpoint_dir = base_checkpoint_root / run_name
-        if run_checkpoint_dir.exists():
-            latest_step = get_latest_checkpoint_step(run_checkpoint_dir)
-            if latest_step is not None:
-                resuming = True
-                logging.info(
-                    f"Resuming from checkpoint directory: {run_checkpoint_dir} at step {latest_step}"
-                )
-            else:
-                raise FileNotFoundError(f"No valid checkpoints found in {run_checkpoint_dir} for resume")
-        else:
-            raise FileNotFoundError(f"Checkpoint directory {run_checkpoint_dir} does not exist for resume")
+    # if config.resume:
+    #     if not config.exp_name:
+    #         raise ValueError("--exp_name must be set when resuming to identify the run directory.")
+    #     run_name = config.exp_name
+    #     run_checkpoint_dir = base_checkpoint_root / run_name
+    #     if run_checkpoint_dir.exists():
+    #         latest_step = get_latest_checkpoint_step(run_checkpoint_dir)
+    #         if latest_step is not None:
+    #             resuming = True
+    #             logging.info(
+    #                 f"Resuming from checkpoint directory: {run_checkpoint_dir} at step {latest_step}"
+    #             )
+    #         else:
+    #             raise FileNotFoundError(f"No valid checkpoints found in {run_checkpoint_dir} for resume")
+    #     else:
+    #         raise FileNotFoundError(f"Checkpoint directory {run_checkpoint_dir} does not exist for resume")
 
     # Initialize wandb on the main rank to obtain run_name; broadcast to others.
     if is_main:
@@ -651,9 +651,10 @@ def train_loop(config: _config.TrainConfig):
 
     # Load weights from weight_loader if specified (for fine-tuning)
     if config.pytorch_weight_path is not None:
-        logging.info(f"Loading weights from: {config.pytorch_weight_path}")
+        config_pytorch_weight_path = "/work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi0_base_pytorch/"
+        logging.info(f"Loading weights from: {config_pytorch_weight_path}")
 
-        model_path = os.path.join(config.pytorch_weight_path, "model.safetensors")
+        model_path = os.path.join(config_pytorch_weight_path, "model.safetensors")
 
         if getattr(config, "reinit_action_expert", False):
             # Load checkpoint selectively: drop action/state projection weights when their shapes
@@ -668,7 +669,7 @@ def train_loop(config: _config.TrainConfig):
                 "state_proj.bias",
             }
             # Drop any force/torque encoder params so they start from scratch too.
-            ft_prefix = "force_torque_axis_cnns"
+            ft_prefix = "force_torque_sensor_mlps"
             for key in list(state_dict.keys()):
                 base_key = key.removeprefix("module.")
                 if base_key in drop_keys or base_key.startswith(ft_prefix):
@@ -696,7 +697,7 @@ def train_loop(config: _config.TrainConfig):
             missing, unexpected = base_model.load_state_dict(filtered_state_dict, strict=False)
             logging.info(
                 "Loaded PyTorch weights from %s (loaded_keys=%d missing=%s unexpected=%s, lora_enabled=%s, skipped=%d)",
-                config.pytorch_weight_path,
+                config_pytorch_weight_path,
                 len(filtered_state_dict),
                 missing,
                 unexpected,
@@ -759,6 +760,7 @@ def train_loop(config: _config.TrainConfig):
             "state_proj",
             "force_torque_axis_cnns",
             "force_torque_axis_mlps",
+            "force_torque_sensor_mlps",
             "force_torque_patch_encoders",
             "force_torque_cnns",
         }
@@ -778,6 +780,7 @@ def train_loop(config: _config.TrainConfig):
                 "force_torque_cnns",
                 "force_torque_axis_cnns",
                 "force_torque_axis_mlps",
+                "force_torque_sensor_mlps",
                 "force_torque_patch_encoders",
             }
             is_action_head = root in {"action_in_proj", "action_out_proj", "state_proj"}
@@ -959,7 +962,8 @@ def train_loop(config: _config.TrainConfig):
         actions = actions.to(torch.float32).to(device)
         model.eval()
         with torch.no_grad():
-            zero_force_torque = current_ft_phase in {"ft_action_head_only", "ft_no_cnn"}
+            # zero_force_torque = current_ft_phase in {"ft_action_head_only", "ft_no_cnn"}
+            zero_force_torque = False
             losses = model(observation, actions, zero_force_torque=zero_force_torque)
             if isinstance(losses, list | tuple):
                 losses = torch.stack(losses)

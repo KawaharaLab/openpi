@@ -47,7 +47,7 @@ FORCE_TORQUE_KEYS = (
 # This may need change if we release a small model.
 IMAGE_RESOLUTION = (224, 224)
 
-FT_HORIZON = 100
+FT_HORIZON = 1
 
 # Data format
 #
