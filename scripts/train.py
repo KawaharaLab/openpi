@@ -319,19 +319,9 @@ def train_step(
             ),
         )
 
-    # Filter out params that aren't kernels.
-    kernel_params = nnx.state(
-        model,
-        nnx.All(
-            nnx.Param,
-            nnx.Not(nnx_utils.PathRegex(".*/(bias|scale|pos_embedding|input_embedding)")),
-            lambda _, x: x.value.ndim > 1,
-        ),
-    )
     info = {
         "loss": loss,
         "grad_norm": optax.global_norm(grads),
-        "param_norm": optax.global_norm(kernel_params),
     }
     return new_state, info
 
@@ -389,6 +379,15 @@ def _count_params_in_filter(params: at.Params, filt: Any) -> int:
 def main(config: _config.TrainConfig):
     init_logging()
     logging.info(f"Running on: {platform.node()}")
+    uses_force_torque = "_ft" in config.name
+    if hasattr(config.model, "use_force_torque"):
+        model_uses_force_torque = getattr(config.model, "use_force_torque")
+        if model_uses_force_torque != uses_force_torque:
+            config = dataclasses.replace(
+                config,
+                model=dataclasses.replace(config.model, use_force_torque=uses_force_torque),
+            )
+    logging.info("Force/torque mode for %s: %s", config.name, uses_force_torque)
 
     _maybe_initialize_jax_distributed()
     logging.info(
@@ -490,10 +489,9 @@ def main(config: _config.TrainConfig):
             _count_params_in_filter(trainable_params, phase_filter),
         )
 
-    uses_force_torque = True
-    action_head_steps = getattr(config, "ft_action_head_steps", 0)
-    no_cnn_steps = getattr(config, "ft_no_cnn_steps", 0)
-    cnn_only_steps = getattr(config, "ft_cnn_only_steps", 0)
+    action_head_steps = getattr(config, "ft_action_head_steps", 0) if uses_force_torque else 0
+    no_cnn_steps = getattr(config, "ft_no_cnn_steps", 0) if uses_force_torque else 0
+    cnn_only_steps = getattr(config, "ft_cnn_only_steps", 0) if uses_force_torque else 0
     ft_schedule_enabled = (action_head_steps > 0) or (no_cnn_steps > 0) or (cnn_only_steps > 0)
     if ft_schedule_enabled:
         logging.info(

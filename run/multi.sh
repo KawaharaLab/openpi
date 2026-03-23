@@ -57,7 +57,7 @@ mpiexec -np ${NNODES} --map-by ppr:1:node:PE=${OMP_NUM_THREADS} --bind-to core -
     export LOCAL_RANK=\${OMPI_COMM_WORLD_LOCAL_RANK:-0}
     export CUDA_DEVICE_ORDER=PCI_BUS_ID
     export CUDA_VISIBLE_DEVICES=0
-    python scripts/train.py pi0_ur3_robotiq_ft \
+    python scripts/train.py pi0_ur3_robotiq \
       --exp_name ${RUN_NAME} \
       --batch_size 128 \
       --num_workers 16 \
