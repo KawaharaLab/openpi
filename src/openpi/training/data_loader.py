@@ -450,9 +450,6 @@ class TorchDataLoader:
                 execute in the main process.
             seed: The seed to use for shuffling the data.
         """
-        if jax.process_count() > 1:
-            raise NotImplementedError("Data loading with multiple processes is not supported.")
-
         if len(dataset) < local_batch_size:
             raise ValueError(f"Local batch size ({local_batch_size}) is larger than the dataset size ({len(dataset)}).")
 
@@ -539,9 +536,6 @@ class RLDSDataLoader:
     ):
         self._dataset = dataset
         self._num_batches = num_batches
-
-        if jax.process_count() > 1:
-            raise NotImplementedError("Data loading with multiple processes is not supported.")
 
         if sharding is None:
             # Use data parallel sharding by default.

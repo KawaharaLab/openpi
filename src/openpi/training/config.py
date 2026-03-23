@@ -178,7 +178,7 @@ class ModelTransformFactory(GroupFactory):
 @dataclasses.dataclass(frozen=True)
 class DataConfigFactory(abc.ABC):
     # The LeRobot repo id.
-    repo_id: str = tyro.MISSING
+    repo_id: str | None = tyro.MISSING
     # Determines how the assets will be loaded.
     assets: AssetsConfig = dataclasses.field(default_factory=AssetsConfig)
     # Base config that will be updated by the factory.
@@ -691,7 +691,7 @@ _CONFIGS = [
         num_train_steps=30000,
         log_interval=50,
         save_interval=5000,
-        pytorch_weight_path="/work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi0_base_pytorch/",
+        pytorch_weight_path="/work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi0_base/",
         freeze_pretrained_steps=15000,
         data=SimpleDataConfig(
             repo_id=None,
@@ -816,7 +816,7 @@ _CONFIGS = [
         num_train_steps=10000,
         log_interval=150,
         save_interval=5000,
-        pytorch_weight_path="/work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi0_base_pytorch/",
+        pytorch_weight_path="/work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi0_base/",
         freeze_pretrained_steps=1000,
         # batch_size=128,
         data=SimpleDataConfig(

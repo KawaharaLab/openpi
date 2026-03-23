@@ -1,6 +1,7 @@
 import logging
 
 import einops
+import flax.linen as nn
 import flax.nnx as nnx
 import flax.nnx.bridge as nnx_bridge
 import jax
@@ -8,6 +9,7 @@ import jax.numpy as jnp
 from typing_extensions import override
 
 from openpi.models import model as _model
+from openpi.models import model_ft as _model_ft
 from openpi.models import pi0_config
 import openpi.models.gemma as _gemma
 import openpi.models.siglip as _siglip
@@ -63,6 +65,29 @@ def posemb_sincos(
     return jnp.concatenate([jnp.sin(sinusoid_input), jnp.cos(sinusoid_input)], axis=-1)
 
 
+class _ForceTorqueAxisCNN(nn.Module):
+    """Per-axis 1D CNN used to encode force/torque history into token embeddings."""
+
+    out_dim: int
+    hidden_dim: int = 256
+    tmp_sweet: bool = False
+
+    @nn.compact
+    def __call__(self, x: at.Float[at.Array, "b h c"]) -> at.Float[at.Array, "b l d"]:
+        if self.tmp_sweet:
+            x = nn.Conv(features=self.hidden_dim, kernel_size=(5,), padding="SAME")(x)
+            x = nn.swish(x)
+            x = nn.Conv(features=self.out_dim, kernel_size=(5,), padding="SAME")(x)
+            x = nn.swish(x)
+            return jnp.mean(x, axis=1, keepdims=True)
+
+        x = nn.Conv(features=self.hidden_dim, kernel_size=(25,), strides=(15,), padding="VALID")(x)
+        x = nn.swish(x)
+        x = nn.Conv(features=self.out_dim, kernel_size=(3,), strides=(3,), padding="VALID")(x)
+        x = nn.swish(x)
+        return x
+
+
 class Pi0(_model.BaseModel):
     def __init__(self, config: pi0_config.Pi0Config, rngs: nnx.Rngs):
         super().__init__(config.action_dim, config.action_horizon, config.max_token_len)
@@ -89,6 +114,25 @@ class Pi0(_model.BaseModel):
         )
         img.lazy_init(next(iter(config.fake_obs().images.values())), train=False, rngs=rngs)
         self.PaliGemma = nnx.Dict(llm=llm, img=img)
+
+        self.force_torque_axis_cnns = None
+        if config.use_force_torque:
+            def _make_axis_cnn() -> nnx_bridge.ToNNX:
+                axis_cnn = nnx_bridge.ToNNX(
+                    _ForceTorqueAxisCNN(
+                        out_dim=paligemma_config.width,
+                        hidden_dim=256,
+                        tmp_sweet=config.tmp_sweet,
+                    )
+                )
+                axis_cnn.lazy_init(jnp.ones((1, _model_ft.FT_HORIZON, 1), dtype=jnp.float32), rngs=rngs)
+                return axis_cnn
+
+            self.force_torque_axis_cnns = nnx.Dict(
+                left_ft=nnx.Dict(axis_0=_make_axis_cnn(), axis_1=_make_axis_cnn(), axis_2=_make_axis_cnn()),
+                right_ft=nnx.Dict(axis_0=_make_axis_cnn(), axis_1=_make_axis_cnn(), axis_2=_make_axis_cnn()),
+            )
+
         self.action_in_proj = nnx.Linear(config.action_dim, action_expert_config.width, rngs=rngs)
         if config.pi05:
             self.time_mlp_in = nnx.Linear(action_expert_config.width, action_expert_config.width, rngs=rngs)
@@ -104,7 +148,7 @@ class Pi0(_model.BaseModel):
 
     @at.typecheck
     def embed_prefix(
-        self, obs: _model.Observation
+        self, obs: _model.Observation | _model_ft.Observation, zero_force_torque: bool = False
     ) -> tuple[at.Float[at.Array, "b s emb"], at.Bool[at.Array, "b s"], at.Bool[at.Array, " s"]]:
         input_mask = []
         ar_mask = []
@@ -131,6 +175,59 @@ class Pi0(_model.BaseModel):
             input_mask.append(obs.tokenized_prompt_mask)
             # full attention between image and language inputs
             ar_mask += [False] * tokenized_inputs.shape[1]
+
+        force_torques = getattr(obs, "force_torques", None)
+        force_torque_masks = getattr(obs, "force_torque_masks", None)
+        if self.force_torque_axis_cnns is not None and force_torques is not None and not zero_force_torque:
+            batch_size = obs.state.shape[0]
+            for sensor in ("left_ft", "right_ft"):
+                if sensor not in force_torques:
+                    continue
+
+                ft = jnp.asarray(force_torques[sensor], dtype=jnp.float32)
+                if ft.ndim == 2:
+                    ft = jnp.broadcast_to(ft[None, ...], (batch_size, *ft.shape))
+                if ft.ndim != 3:
+                    raise ValueError(f"Expected force/torque tensor with rank 3, got shape {ft.shape}")
+
+                # Accept (B, H, C) and (B, C, H)
+                if ft.shape[-1] == 6:
+                    pass
+                elif ft.shape[-2] == 6:
+                    ft = jnp.swapaxes(ft, -1, -2)
+                else:
+                    raise ValueError(f"Expected force/torque tensor with 6 channels, got shape {ft.shape}")
+
+                if ft.shape[-2] > _model_ft.FT_HORIZON:
+                    ft = ft[:, -_model_ft.FT_HORIZON :, :]
+                elif ft.shape[-2] < _model_ft.FT_HORIZON:
+                    pad = jnp.zeros((batch_size, _model_ft.FT_HORIZON - ft.shape[-2], ft.shape[-1]), dtype=ft.dtype)
+                    ft = jnp.concatenate([ft, pad], axis=1)
+
+                # Mirror PyTorch path by using the first 3 channels.
+                ft = ft[..., :3]
+
+                axis_tokens = []
+                for axis in range(3):
+                    axis_input = ft[:, :, axis : axis + 1]
+                    axis_out = self.force_torque_axis_cnns[sensor][f"axis_{axis}"](axis_input)
+                    axis_tokens.append(axis_out)
+
+                sensor_tokens = jnp.concatenate(axis_tokens, axis=1)
+                tokens.append(sensor_tokens)
+
+                sensor_mask = None
+                if force_torque_masks is not None:
+                    sensor_mask = force_torque_masks.get(sensor)
+                if sensor_mask is None:
+                    mask = jnp.ones((batch_size, sensor_tokens.shape[1]), dtype=jnp.bool_)
+                else:
+                    sensor_mask = jnp.asarray(sensor_mask, dtype=jnp.bool_)
+                    sensor_mask = sensor_mask[:, None]
+                    mask = jnp.broadcast_to(sensor_mask, (batch_size, sensor_tokens.shape[1]))
+                input_mask.append(mask)
+                ar_mask += [False] * sensor_tokens.shape[1]
+
         tokens = jnp.concatenate(tokens, axis=1)
         input_mask = jnp.concatenate(input_mask, axis=1)
         ar_mask = jnp.array(ar_mask)
@@ -138,7 +235,7 @@ class Pi0(_model.BaseModel):
 
     @at.typecheck
     def embed_suffix(
-        self, obs: _model.Observation, noisy_actions: _model.Actions, timestep: at.Float[at.Array, " b"]
+        self, obs: _model.Observation | _model_ft.Observation, noisy_actions: _model.Actions, timestep: at.Float[at.Array, " b"]
     ) -> tuple[
         at.Float[at.Array, "b s emb"],
         at.Bool[at.Array, "b s"],
@@ -187,10 +284,19 @@ class Pi0(_model.BaseModel):
 
     @override
     def compute_loss(
-        self, rng: at.KeyArrayLike, observation: _model.Observation, actions: _model.Actions, *, train: bool = False
+        self,
+        rng: at.KeyArrayLike,
+        observation: _model.Observation | _model_ft.Observation,
+        actions: _model.Actions,
+        *,
+        train: bool = False,
+        zero_force_torque: bool = False,
     ) -> at.Float[at.Array, "*b ah"]:
         preprocess_rng, noise_rng, time_rng = jax.random.split(rng, 3)
-        observation = _model.preprocess_observation(preprocess_rng, observation, train=train)
+        if hasattr(observation, "force_torques"):
+            observation = _model_ft.preprocess_observation(preprocess_rng, observation, train=train)
+        else:
+            observation = _model.preprocess_observation(preprocess_rng, observation, train=train)
 
         batch_shape = actions.shape[:-2]
         noise = jax.random.normal(noise_rng, actions.shape)
@@ -200,7 +306,7 @@ class Pi0(_model.BaseModel):
         u_t = noise - actions
 
         # one big forward pass of prefix + suffix at once
-        prefix_tokens, prefix_mask, prefix_ar_mask = self.embed_prefix(observation)
+        prefix_tokens, prefix_mask, prefix_ar_mask = self.embed_prefix(observation, zero_force_torque=zero_force_torque)
         suffix_tokens, suffix_mask, suffix_ar_mask, adarms_cond = self.embed_suffix(observation, x_t, time)
         input_mask = jnp.concatenate([prefix_mask, suffix_mask], axis=1)
         ar_mask = jnp.concatenate([prefix_ar_mask, suffix_ar_mask], axis=0)
@@ -217,12 +323,15 @@ class Pi0(_model.BaseModel):
     def sample_actions(
         self,
         rng: at.KeyArrayLike,
-        observation: _model.Observation,
+        observation: _model.Observation | _model_ft.Observation,
         *,
         num_steps: int | at.Int[at.Array, ""] = 10,
         noise: at.Float[at.Array, "b ah ad"] | None = None,
     ) -> _model.Actions:
-        observation = _model.preprocess_observation(None, observation, train=False)
+        if hasattr(observation, "force_torques"):
+            observation = _model_ft.preprocess_observation(None, observation, train=False)
+        else:
+            observation = _model.preprocess_observation(None, observation, train=False)
         # note that we use the convention more common in diffusion literature, where t=1 is noise and t=0 is the target
         # distribution. yes, this is the opposite of the pi0 paper, and I'm sorry.
         dt = -1.0 / num_steps

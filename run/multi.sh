@@ -1,10 +1,9 @@
 #!/bin/bash
-#PBS -q regular-g
+#PBS -q debug-g
 #PBS -l select=4:ncpus=72:mpiprocs=1
-#PBS -l walltime=20:00:00
 #PBS -W group_list=gr41
 #PBS -j oe
-#PBS -N encoder
+#PBS -N jax_vla
 
 module purge
 module load nvidia nv-hpcx
@@ -17,6 +16,7 @@ export MKL_NUM_THREADS=${MKL_NUM_THREADS:-16}
 
 MASTER_ADDR=$(getent hosts "$(head -n1 "$PBS_NODEFILE")" | awk '{print $1; exit}')
 MASTER_PORT=29500
+JAX_COORDINATOR_PORT=${JAX_COORDINATOR_PORT:-$((MASTER_PORT + 1))}
 NNODES=$(sort -u "$PBS_NODEFILE" | wc -l)
 RUN_NAME=${RUN_NAME:-distributed_test_$(date +%s)}
 
@@ -26,12 +26,12 @@ if [ -n "$IFACE" ]; then
   export NCCL_SOCKET_IFNAME=$IFACE
   export GLOO_SOCKET_IFNAME=$IFACE
 fi
-export MASTER_ADDR MASTER_PORT NNODES
+export MASTER_ADDR MASTER_PORT JAX_COORDINATOR_PORT NNODES
 unset OMPI_MCA_mca_base_env_list
 
 # wandb: キーがあればオンライン、無ければオフライン
 if [ -n "${WANDB_API_KEY:-}" ]; then
-  unset WANDB_MODE
+  export WANDB_MODE=online
 else
   export WANDB_MODE=offline
 fi
@@ -46,29 +46,23 @@ mpiexec -np ${NNODES} --map-by ppr:1:node:PE=${OMP_NUM_THREADS} --bind-to core -
 # 本番実行
 mpiexec -np ${NNODES} --map-by ppr:1:node:PE=${OMP_NUM_THREADS} --bind-to core --report-bindings --hostfile "$PBS_NODEFILE" \
   -x OMP_NUM_THREADS -x MKL_NUM_THREADS \
-  -x MASTER_ADDR -x MASTER_PORT -x NCCL_SOCKET_IFNAME -x GLOO_SOCKET_IFNAME \
+  -x MASTER_ADDR -x MASTER_PORT -x JAX_COORDINATOR_PORT -x NCCL_SOCKET_IFNAME -x GLOO_SOCKET_IFNAME \
   -x CUDA_VISIBLE_DEVICES -x PATH -x LD_LIBRARY_PATH -x WANDB_MODE -x WANDB_API_KEY \
   bash -lc "
     module purge; module load nvidia nv-hpcx; module load hdf5
     cd $PBS_O_WORKDIR
     source .venv/bin/activate
-    NODE_RANK=\$OMPI_COMM_WORLD_RANK
+    export RANK=\$OMPI_COMM_WORLD_RANK
+    export WORLD_SIZE=\$OMPI_COMM_WORLD_SIZE
+    export LOCAL_RANK=\${OMPI_COMM_WORLD_LOCAL_RANK:-0}
     export CUDA_DEVICE_ORDER=PCI_BUS_ID
     export CUDA_VISIBLE_DEVICES=0
-    torchrun \
-      --nnodes=${NNODES} \
-      --nproc_per_node=1 \
-      --node_rank=\${NODE_RANK} \
-      --master_addr=${MASTER_ADDR} \
-      --master_port=${MASTER_PORT} \
-      scripts/train_pytorch.py pi0_ur3_robotiq_ft \
-        --exp_name ${RUN_NAME} \
-        --batch_size 128 \
-            --num_workers 16 \
-        --no-pytorch-gradient-checkpointing \
-            --ft_action_head_steps 0 \
-            --ft_cnn_only_steps 30000 \
-            --num_train_steps 30000 \
-            --pytorch_weight_path /work/gr41/r41000/openpi/checkpoints/pi0_ur3_robotiq_ft/sweet-cherry-23/20000/ \
-        --save_interval 10000 \
+    python scripts/train.py pi0_ur3_robotiq_ft \
+      --exp_name ${RUN_NAME} \
+      --batch_size 128 \
+      --num_workers 16 \
+      --ft_action_head_steps 100 \
+      --num_train_steps 500 \
+      --pytorch_weight_path /work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi0_base/ \
+      --save_interval 10000 \
   "

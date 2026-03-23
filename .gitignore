@@ -7,7 +7,11 @@ run.sh.*
 multi.sh.*
 short.sh.*
 tmp.sh.*
-
+mlp_e2e.o*
+mlp.o*
+jax_long.o*
+jax_test.o*
+jax_vla.o*
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
