@@ -1,0 +1,15 @@
+{
+  "config_name": "pi0_ur3_robotiq",
+  "exp_name": "treasured-energy-30",
+  "checkpoint_step": 20000,
+  "split": "train",
+  "num_batches": 64,
+  "compare_action_dim": 7,
+  "use_quantile_norm": false,
+  "metrics": {
+    "eval_action_mse_norm_mean": 0.10901128593832254,
+    "eval_action_mse_norm_std": 0.03410030832191104,
+    "eval_action_mse_raw_mean": 0.00046216355349315563,
+    "eval_action_mse_raw_std": 0.00014229940498463936
+  }
+}

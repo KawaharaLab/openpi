@@ -1,5 +1,5 @@
 #!/bin/bash
-#PBS -q debug-g
+#PBS -q regular-g
 #PBS -l select=4:ncpus=72:mpiprocs=1
 #PBS -W group_list=gr41
 #PBS -j oe
@@ -61,8 +61,7 @@ mpiexec -np ${NNODES} --map-by ppr:1:node:PE=${OMP_NUM_THREADS} --bind-to core -
       --exp_name ${RUN_NAME} \
       --batch_size 128 \
       --num_workers 16 \
-      --ft_action_head_steps 100 \
-      --num_train_steps 500 \
-      --pytorch_weight_path /work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi0_base/ \
+      --ft_action_head_steps 2000 \
+      --num_train_steps 50000 \
       --save_interval 10000 \
   "

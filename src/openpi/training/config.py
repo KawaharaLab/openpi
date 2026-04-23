@@ -688,6 +688,9 @@ _CONFIGS = [
     TrainConfig(
         name="pi0_ur3_robotiq",
         model=pi0_config.Pi0Config(),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "/work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"
+        ),
         num_train_steps=30000,
         log_interval=50,
         save_interval=5000,
@@ -695,14 +698,14 @@ _CONFIGS = [
         freeze_pretrained_steps=15000,
         data=SimpleDataConfig(
             repo_id=None,
-            assets=AssetsConfig(asset_id="lan_ur3_lerobot"),
+            assets=AssetsConfig(asset_id="lan_ur3_lerobot_forward"),
             data_transforms=lambda model: _transforms.Group(
                 inputs=[ur3_robotiq_policy.Ur3RobotiqInputs(model_type=model.model_type)],
                 outputs=[ur3_robotiq_policy.Ur3RobotiqOutputs()],
             ),
             base_config=DataConfig(
                 prompt_from_task=True,
-                local_repo_path="/work/gr41/r41000/data/lan_ur3_lerobot",
+                local_repo_path="/work/gr41/r41000/data/lan_ur3_lerobot_forward",
                 action_sequence_keys=(),
                 repack_transforms=_transforms.Group(
                     inputs=[
@@ -812,6 +815,9 @@ _CONFIGS = [
         model=pi0_config.Pi0Config(
             paligemma_variant="gemma_2b",
             action_expert_variant="gemma_300m",
+        ),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "/work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi0_base/params"
         ),
         num_train_steps=10000,
         log_interval=150,
@@ -1071,15 +1077,25 @@ _CONFIGS = [
     TrainConfig(
         name="pi05_ur3_robotiq",
         model=pi0_config.Pi0Config(pi05=True),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "/work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi05_base/params"
+        ),
+        num_train_steps=30000,
+        log_interval=50,
+        save_interval=5000,
+        pytorch_weight_path="/work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi05_base/",
+        freeze_pretrained_steps=15000,
         data=SimpleDataConfig(
-            repo_id="pick_and_place_lerobot",
-            assets=AssetsConfig(),
+            repo_id=None,
+            assets=AssetsConfig(asset_id="lan_ur3_lerobot_forward"),
             data_transforms=lambda model: _transforms.Group(
                 inputs=[ur3_robotiq_policy.Ur3RobotiqInputs(model_type=model.model_type)],
                 outputs=[ur3_robotiq_policy.Ur3RobotiqOutputs()],
             ),
             base_config=DataConfig(
                 prompt_from_task=True,
+                local_repo_path="/work/gr41/r41000/data/lan_ur3_lerobot_forward",
+                action_sequence_keys=(),
                 repack_transforms=_transforms.Group(
                     inputs=[
                         _transforms.RepackTransform(
@@ -1101,15 +1117,25 @@ _CONFIGS = [
     TrainConfig(
         name="pi05_ur3_robotiq_ft",
         model=pi0_config.Pi0Config(pi05=True),
+        weight_loader=weight_loaders.CheckpointWeightLoader(
+            "/work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi05_base/params"
+        ),
+        num_train_steps=10000,
+        log_interval=150,
+        save_interval=5000,
+        pytorch_weight_path="/work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi05_base/",
+        freeze_pretrained_steps=1000,
         data=SimpleDataConfig(
-            repo_id="pick_and_place_lerobot",
-            assets=AssetsConfig(),
+            repo_id=None,
+            assets=AssetsConfig(asset_id="lan_ur3_lerobot_forward"),
             data_transforms=lambda model: _transforms.Group(
                 inputs=[ft_angles.Ur3RobotiqInputs(model_type=model.model_type)],
                 outputs=[ft_angles.Ur3RobotiqOutputs()],
             ),
             base_config=DataConfig(
                 prompt_from_task=True,
+                local_repo_path="/work/gr41/r41000/data/lan_ur3_lerobot_forward",
+                action_sequence_keys=(),
                 repack_transforms=_transforms.Group(
                     inputs=[
                         _transforms.RepackTransform(
@@ -1121,6 +1147,10 @@ _CONFIGS = [
                                 "state": "state",
                                 "actions": "actions",
                                 "prompt": "prompt",
+                                "force_torques": {
+                                    "left_ft": "left_ft",
+                                    "right_ft": "right_ft",
+                                },
                             }
                         )
                     ]

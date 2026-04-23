@@ -304,6 +304,11 @@ def train_step(
     grads = grads.map(lambda path, g: g.replace(value=g.value * grad_mask_flat[path].value.astype(g.value.dtype)))
 
     updates, new_opt_state = state.tx.update(grads, state.opt_state, params)
+    # Enforce true phase-freeze semantics on params: masked leaves must not move at all.
+    # This prevents AdamW decoupled weight decay from changing frozen params even when grads are zero.
+    updates = updates.map(
+        lambda path, u: u.replace(value=u.value * grad_mask_flat[path].value.astype(u.value.dtype))
+    )
     new_params = optax.apply_updates(params, updates)
 
     # Update the model in place and return the new full state.
@@ -379,6 +384,11 @@ def _count_params_in_filter(params: at.Params, filt: Any) -> int:
 def main(config: _config.TrainConfig):
     init_logging()
     logging.info(f"Running on: {platform.node()}")
+    if isinstance(config.weight_loader, _weight_loaders.NoOpWeightLoader) and config.pytorch_weight_path is not None:
+        logging.warning(
+            "JAX train.py does not use `pytorch_weight_path`. "
+            "Current config has NoOp weight_loader, so training will start from random initialization."
+        )
     uses_force_torque = "_ft" in config.name
     if hasattr(config.model, "use_force_torque"):
         model_uses_force_torque = getattr(config.model, "use_force_torque")
@@ -465,10 +475,43 @@ def main(config: _config.TrainConfig):
     logging.info(f"Initialized data loader:\n{training_utils.array_tree_to_info(batch)}")
 
     # Log images from first batch to sanity check.
-    images_to_log = [
-        wandb.Image(np.concatenate([np.array(img[i]) for img in batch[0].images.values()], axis=1))
-        for i in range(min(5, len(next(iter(batch[0].images.values())))))
-    ]
+    def _to_hwc_uint8(img: Any) -> np.ndarray:
+        arr = np.asarray(img)
+        if arr.ndim != 3:
+            raise ValueError(f"Expected 3D image array, got shape {arr.shape}")
+
+        # Convert CHW -> HWC if needed.
+        if arr.shape[0] in (1, 3) and arr.shape[0] <= arr.shape[-1]:
+            arr = np.transpose(arr, (1, 2, 0))
+
+        if arr.dtype != np.uint8:
+            arr = arr.astype(np.float32)
+            arr_min = float(np.min(arr))
+            arr_max = float(np.max(arr))
+
+            # Training pipelines commonly store images as [-1, 1] floats.
+            if arr_min >= -1.0 and arr_max <= 1.0:
+                arr = (arr + 1.0) / 2.0
+                arr = np.clip(arr, 0.0, 1.0) * 255.0
+            # Also support [0, 1] floats.
+            elif arr_min >= 0.0 and arr_max <= 1.0:
+                arr = np.clip(arr, 0.0, 1.0) * 255.0
+            else:
+                # Fallback for already scaled float images.
+                arr = np.clip(arr, 0.0, 255.0)
+
+            arr = arr.astype(np.uint8)
+
+        if arr.shape[2] == 1:
+            arr = np.repeat(arr, 3, axis=2)
+
+        return arr
+
+    num_preview = min(5, len(next(iter(batch[0].images.values()))))
+    images_to_log = []
+    for i in range(num_preview):
+        camera_views = [_to_hwc_uint8(img[i]) for img in batch[0].images.values()]
+        images_to_log.append(wandb.Image(np.concatenate(camera_views, axis=1)))
     wandb.log({"camera_views": images_to_log}, step=0)
 
     train_state, train_state_sharding = init_train_state(config, init_rng, mesh, resume=resuming)
@@ -489,7 +532,7 @@ def main(config: _config.TrainConfig):
             _count_params_in_filter(trainable_params, phase_filter),
         )
 
-    action_head_steps = getattr(config, "ft_action_head_steps", 0) if uses_force_torque else 0
+    action_head_steps = getattr(config, "ft_action_head_steps", 0)
     no_cnn_steps = getattr(config, "ft_no_cnn_steps", 0) if uses_force_torque else 0
     cnn_only_steps = getattr(config, "ft_cnn_only_steps", 0) if uses_force_torque else 0
     ft_schedule_enabled = (action_head_steps > 0) or (no_cnn_steps > 0) or (cnn_only_steps > 0)
@@ -561,6 +604,7 @@ def main(config: _config.TrainConfig):
         if step % config.log_interval == 0:
             stacked_infos = common_utils.stack_forest(infos)
             reduced_info = jax.device_get(jax.tree.map(jnp.mean, stacked_infos))
+
             def _fmt_metric(value: Any) -> str:
                 if isinstance(value, (str, bytes)):
                     return str(value)

@@ -1,0 +1,15 @@
+{
+  "config_name": "pi05_ur3_robotiq",
+  "exp_name": "major-sunset-10",
+  "checkpoint_step": 20000,
+  "split": "train",
+  "num_batches": 64,
+  "compare_action_dim": 7,
+  "use_quantile_norm": true,
+  "metrics": {
+    "eval_action_mse_norm_mean": 0.02120732307957951,
+    "eval_action_mse_norm_std": 0.005125746534771761,
+    "eval_action_mse_raw_mean": 0.00040544077205595386,
+    "eval_action_mse_raw_std": 0.00015569020152138134
+  }
+}
