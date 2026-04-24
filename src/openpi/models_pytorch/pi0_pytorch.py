@@ -263,7 +263,6 @@ class PI0Pytorch(nn.Module):
 
             embs.append(img_emb)
             pad_masks.append(img_mask[:, None].expand(bsize, num_img_embs))
-            print("img_emb shape:", img_emb.shape)
 
             # Create attention masks so that image tokens attend to each other
             att_masks += [0] * num_img_embs
@@ -275,7 +274,6 @@ class PI0Pytorch(nn.Module):
             return lang_emb * math.sqrt(lang_emb_dim)
 
         lang_emb = self._apply_checkpoint(lang_embed_func, lang_tokens)
-        print("lang_emb shape:", lang_emb.shape)
         embs.append(lang_emb)
         pad_masks.append(lang_masks)
         # full attention between image and language inputs
@@ -320,7 +318,6 @@ class PI0Pytorch(nn.Module):
                     axis_embs.append(axis_out)
 
                 ft_emb = torch.cat(axis_embs, dim=1)  # (B, 3 * L_out, d)
-                print(f"{key} ft_emb shape:", ft_emb.shape)
                 embs.append(ft_emb)
 
                 sensor_mask = force_torque_masks.get(key)

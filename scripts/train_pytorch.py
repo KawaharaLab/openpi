@@ -658,22 +658,34 @@ def train_loop(config: _config.TrainConfig):
         model_path = os.path.join(config.pytorch_weight_path, "model.safetensors")
 
         if getattr(config, "reinit_action_expert", False):
-            # Load checkpoint selectively: drop action/state projection weights when their shapes
-            # don't match the current model (e.g., switching action_dim).
+            # Load checkpoint selectively: when the downstream state/action spaces differ from
+            # pretraining, reinitialize the entire action expert stack from scratch.
             state_dict = safetensors.torch.load_file(model_path)
-            drop_keys = {
+            drop_exact_keys = {
                 "action_in_proj.weight",
                 "action_in_proj.bias",
                 "action_out_proj.weight",
                 "action_out_proj.bias",
                 "state_proj.weight",
                 "state_proj.bias",
+                "action_time_mlp_in.weight",
+                "action_time_mlp_in.bias",
+                "action_time_mlp_out.weight",
+                "action_time_mlp_out.bias",
+                "time_mlp_in.weight",
+                "time_mlp_in.bias",
+                "time_mlp_out.weight",
+                "time_mlp_out.bias",
             }
-            # Drop any force/torque encoder params so they start from scratch too.
-            ft_prefix = "force_torque_axis_cnns"
+            # Drop any action-expert backbone weights and other expert-specific modules so they
+            # start from scratch as well.
+            drop_prefixes = (
+                "paligemma_with_expert.gemma_expert.",
+                "force_torque_axis_cnns.",
+            )
             for key in list(state_dict.keys()):
                 base_key = key.removeprefix("module.")
-                if base_key in drop_keys or base_key.startswith(ft_prefix):
+                if base_key in drop_exact_keys or any(base_key.startswith(prefix) for prefix in drop_prefixes):
                     state_dict.pop(key)
 
             base_model = model.module if isinstance(model, torch.nn.parallel.DistributedDataParallel) else model
@@ -726,8 +738,7 @@ def train_loop(config: _config.TrainConfig):
 
     # Compute optional freeze window; apply after we know the resume step.
     freeze_steps_total = 0
-    explicit_steps = 0
-    # explicit_steps = getattr(config, "freeze_pretrained_steps", 0) or 0
+    explicit_steps = getattr(config, "freeze_pretrained_steps", 0) or 0
     # When FT schedule is enabled (always, due to defaults above), we intentionally ignore legacy freeze.
     if not ft_schedule_enabled:
         if explicit_steps > 0:
@@ -886,12 +897,12 @@ def train_loop(config: _config.TrainConfig):
                 freeze_steps_remaining = freeze_steps_total - global_step
                 _apply_trainable_mask(freeze_active=True, stage="initial_in_freeze_window")
                 logging.info(
-                    f"Freezing pretrained weights for first {freeze_steps_total} steps (remaining from step {global_step}: {freeze_steps_remaining}); only scratch heads (action/FT, reinitialized expert) stay trainable"
+                    f"Freezing pretrained backbone for first {freeze_steps_total} steps (remaining from step {global_step}: {freeze_steps_remaining}); only scratch-initialized action expert / heads stay trainable"
                 )
         else:
             _apply_trainable_mask(freeze_active=False, stage="initial_no_freeze_window")
             logging.info(
-                "No backbone freeze window; paligemma base stays frozen, action/FT/gemma_expert train, LoRA unfrozen."
+                "No backbone freeze window; all trainable modules are enabled from the start."
             )
 
     if is_main:
@@ -991,7 +1002,7 @@ def train_loop(config: _config.TrainConfig):
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
                 logging.info(
-                    f"Exited freeze window at step {global_step}; LoRA and non-reinitialized action expert params are now trainable, paligemma base still frozen"
+                    f"Exited freeze window at step {global_step}; switching from action-expert-only warmup to full training"
                 )
                 freeze_steps_remaining = 0  # disable further checks
 

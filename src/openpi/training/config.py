@@ -17,6 +17,7 @@ import openpi.models.model as _model
 import openpi.models.pi0_config as pi0_config
 import openpi.models.pi0_fast as pi0_fast
 import openpi.models.tokenizer as _tokenizer
+import openpi.policies.aic_policy as aic_policy
 import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
@@ -364,6 +365,28 @@ class LeRobotLiberoDataConfig(DataConfigFactory):
             repack_transforms=repack_transform,
             data_transforms=data_transforms,
             model_transforms=model_transforms,
+        )
+
+
+@dataclasses.dataclass(frozen=True)
+class LeRobotAICDataConfig(DataConfigFactory):
+    # If provided, will be injected into the input data if the dataset does not define a prompt.
+    default_prompt: str | None = None
+
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        data_transforms = _transforms.Group(
+            inputs=[aic_policy.AICInputs(model_type=model_config.model_type)],
+            outputs=[aic_policy.AICOutputs()],
+        )
+        model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config)
+
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs, model_config),
+            data_transforms=data_transforms,
+            model_transforms=model_transforms,
+            action_sequence_keys=(),
+            prompt_from_task=True,
         )
 
 
@@ -1156,6 +1179,22 @@ _CONFIGS = [
                     ]
                 ),
             ),
+        ),
+    ),
+    TrainConfig(
+        name="pi0_aic_cheatcode_lerobot",
+        model=pi0_config.Pi0Config(action_dim=6, action_horizon=30),
+        pytorch_weight_path="/work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi0_base_pytorch/",
+        reinit_action_expert=True,
+        freeze_pretrained_steps=10_000,
+        num_train_steps=30_000,
+        log_interval=50,
+        save_interval=5000,
+        data=LeRobotAICDataConfig(
+            repo_id=None,
+            assets=AssetsConfig(asset_id="aic_cheatcode_lerobot"),
+            base_config=DataConfig(local_repo_path="/work/gr41/r41000/openpi/data/aic_cheatcode_lerobot"),
+            default_prompt="perform the task",
         ),
     ),
     #

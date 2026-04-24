@@ -1,4 +1,6 @@
 from collections.abc import Iterator, Sequence
+import io
+import json
 import logging
 import multiprocessing
 import os
@@ -9,7 +11,10 @@ import packaging.version
 
 import jax
 import jax.numpy as jnp
+import PIL.Image
+import pyarrow.parquet as pq
 import lerobot.datasets.lerobot_dataset as lerobot_dataset
+import lerobot.datasets.utils as lerobot_utils
 import numpy as np
 import torch
 
@@ -130,6 +135,83 @@ class FakeDataset(Dataset):
         return self._num_samples
 
 
+class LocalParquetDataset(Dataset[dict]):
+    """Dataset backed by local parquet shards in modern LeRobot layout.
+
+    This is a lightweight fallback for local datasets that store samples under
+    `data/chunk-*/file-*.parquet` but do not include the episode/task metadata
+    files expected by the upstream LeRobot v2.1 loader.
+    """
+
+    def __init__(self, root: pathlib.Path):
+        self._root = root
+        self._files = sorted((root / "data").glob("chunk-*/file-*.parquet"))
+        if not self._files:
+            raise FileNotFoundError(f"No parquet files found under {root / 'data'}")
+
+        self._file_lengths = [pq.ParquetFile(path).metadata.num_rows for path in self._files]
+        self._cumulative_lengths = np.cumsum(self._file_lengths)
+        self._cached_file_index: int | None = None
+        self._cached_rows: list[dict] | None = None
+
+    def __len__(self) -> int:
+        return int(self._cumulative_lengths[-1])
+
+    def __getitem__(self, index: SupportsIndex) -> dict:
+        idx = index.__index__()
+        if idx < 0 or idx >= len(self):
+            raise IndexError(idx)
+
+        file_index = int(np.searchsorted(self._cumulative_lengths, idx, side="right"))
+        prev_total = 0 if file_index == 0 else int(self._cumulative_lengths[file_index - 1])
+        row_index = idx - prev_total
+
+        rows = self._load_file_rows(file_index)
+        row = rows[row_index]
+        return {key: self._convert_value(value) for key, value in row.items()}
+
+    def _load_file_rows(self, file_index: int) -> list[dict]:
+        if self._cached_file_index != file_index:
+            self._cached_rows = pq.read_table(self._files[file_index]).to_pylist()
+            self._cached_file_index = file_index
+        assert self._cached_rows is not None
+        return self._cached_rows
+
+    def _convert_value(self, value):
+        if isinstance(value, dict) and "bytes" in value:
+            with PIL.Image.open(io.BytesIO(value["bytes"])) as image:
+                return np.asarray(image.convert("RGB"))
+        if isinstance(value, list):
+            return np.asarray(value)
+        if isinstance(value, (int, float, bool, np.number)):
+            return np.asarray(value)
+        return value
+
+
+def _load_local_task_mapping(root: pathlib.Path) -> dict[int, str]:
+    tasks_jsonl = root / "meta" / "tasks.jsonl"
+    if tasks_jsonl.exists():
+        with tasks_jsonl.open(encoding="utf-8") as f:
+            items = [json.loads(line) for line in f if line.strip()]
+        return {int(item["task_index"]): item["task"] for item in items}
+
+    tasks_parquet = root / "meta" / "tasks.parquet"
+    if tasks_parquet.exists():
+        rows = pq.read_table(tasks_parquet).to_pylist()
+        return {int(row["task_index"]): str(row["__index_level_0__"]) for row in rows}
+
+    raise FileNotFoundError(f"Could not find tasks metadata under {root / 'meta'}")
+
+
+def _should_use_local_parquet_loader(root: pathlib.Path) -> bool:
+    info_path = root / "meta" / "info.json"
+    if not info_path.exists():
+        return False
+    info = json.loads(info_path.read_text())
+    data_path = info.get("data_path", "")
+    return "{file_index" in data_path or "{chunk_index" in data_path
+
+
 def create_torch_dataset(
     data_config: _config.DataConfig, action_horizon: int, model_config: _model.BaseModelConfig
 ) -> Dataset:
@@ -138,12 +220,16 @@ def create_torch_dataset(
         local_path = pathlib.Path(data_config.local_repo_path)
         repo_id = local_path.name
         root = local_path
+        if _should_use_local_parquet_loader(local_path):
+            dataset = LocalParquetDataset(local_path)
+            if data_config.prompt_from_task:
+                dataset = TransformedDataset(dataset, [_transforms.PromptFromLeRobotTask(_load_local_task_mapping(root))])
+            return dataset
         # Force offline/version checks to rely on local files, not Hugging Face.
         os.environ.setdefault("HF_HUB_OFFLINE", "1")
-        import lerobot.datasets.utils as lr_utils
 
-        lr_utils.get_repo_versions = lambda _repo_id: [packaging.version.parse("2.1")]
-        lr_utils.get_safe_version = lambda _repo_id, version: str(version)
+        lerobot_utils.get_repo_versions = lambda _repo_id: [packaging.version.parse("2.1")]
+        lerobot_utils.get_safe_version = lambda _repo_id, version: str(version)
     else:
         repo_id = data_config.repo_id
         root = None

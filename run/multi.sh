@@ -3,7 +3,7 @@
 #PBS -l select=4:ncpus=72:mpiprocs=1
 #PBS -W group_list=gr41
 #PBS -j oe
-#PBS -N jax_vla
+#PBS -N aic_pi0
 
 module purge
 module load nvidia nv-hpcx
@@ -13,6 +13,8 @@ cd "$PBS_O_WORKDIR"
 # Threading/BLAS settings for each rank
 export OMP_NUM_THREADS=${OMP_NUM_THREADS:-16}
 export MKL_NUM_THREADS=${MKL_NUM_THREADS:-16}
+export WANDB_API_KEY=c85b817c62f441243d232b381088358e72fa2b19
+
 
 MASTER_ADDR=$(getent hosts "$(head -n1 "$PBS_NODEFILE")" | awk '{print $1; exit}')
 MASTER_PORT=29500
@@ -57,11 +59,10 @@ mpiexec -np ${NNODES} --map-by ppr:1:node:PE=${OMP_NUM_THREADS} --bind-to core -
     export LOCAL_RANK=\${OMPI_COMM_WORLD_LOCAL_RANK:-0}
     export CUDA_DEVICE_ORDER=PCI_BUS_ID
     export CUDA_VISIBLE_DEVICES=0
-    python scripts/train.py pi0_ur3_robotiq \
+    python scripts/train_pytorch.py pi0_aic_cheatcode_lerobot \
       --exp_name ${RUN_NAME} \
       --batch_size 128 \
-      --num_workers 16 \
-      --ft_action_head_steps 2000 \
-      --num_train_steps 50000 \
+      --num_workers 8 \
+      --num_train_steps 60000 \
       --save_interval 10000 \
   "

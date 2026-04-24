@@ -175,3 +175,4 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 eval_compare_checkpoints.sh.*
+aic_pi0.o*
