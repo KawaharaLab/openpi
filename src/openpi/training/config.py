@@ -133,7 +133,10 @@ class ModelTransformFactory(GroupFactory):
                         _transforms.TokenizePrompt(
                             _tokenizer.PaligemmaTokenizer(model_config.max_token_len),
                         ),
-                        _transforms.PadStatesAndActions(model_config.action_dim),
+                        _transforms.PadStatesAndActions(
+                            model_config.action_dim,
+                            getattr(model_config, "state_dim", model_config.action_dim),
+                        ),
                     ],
                 )
             case _model.ModelType.PI05:
@@ -146,7 +149,10 @@ class ModelTransformFactory(GroupFactory):
                             _tokenizer.PaligemmaTokenizer(model_config.max_token_len),
                             discrete_state_input=model_config.discrete_state_input,
                         ),
-                        _transforms.PadStatesAndActions(model_config.action_dim),
+                        _transforms.PadStatesAndActions(
+                            model_config.action_dim,
+                            getattr(model_config, "state_dim", model_config.action_dim),
+                        ),
                     ],
                 )
             case _model.ModelType.PI0_FAST:
@@ -1183,13 +1189,13 @@ _CONFIGS = [
     ),
     TrainConfig(
         name="pi0_aic_cheatcode_lerobot",
-        model=pi0_config.Pi0Config(action_dim=6, action_horizon=30),
+        model=pi0_config.Pi0Config(action_dim=6, state_dim=13, action_horizon=30),
         pytorch_weight_path="/work/gr41/r41000/.cache/openpi/openpi-assets/checkpoints/pi0_base_pytorch/",
         reinit_action_expert=True,
-        freeze_pretrained_steps=10_000,
+        freeze_pretrained_steps=10000,
         num_train_steps=30_000,
-        log_interval=50,
-        save_interval=5000,
+        log_interval=500,
+        save_interval=10000,
         data=LeRobotAICDataConfig(
             repo_id=None,
             assets=AssetsConfig(asset_id="aic_cheatcode_lerobot"),

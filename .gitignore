@@ -176,3 +176,5 @@ cython_debug/
 #.idea/
 eval_compare_checkpoints.sh.*
 aic_pi0.o*
+log/
+new_data/

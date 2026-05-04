@@ -92,6 +92,7 @@ class PI0Pytorch(nn.Module):
         paligemma_config = _gemma.get_config(config.paligemma_variant)
         action_expert_config = _gemma.get_config(config.action_expert_variant)
         action_dim = config.action_dim
+        state_dim = getattr(config, "state_dim", action_dim)
 
         self.paligemma_with_expert = PaliGemmaWithExpertModel(
             paligemma_config,
@@ -146,7 +147,7 @@ class PI0Pytorch(nn.Module):
             self.time_mlp_in = nn.Linear(action_expert_config.width, action_expert_config.width)
             self.time_mlp_out = nn.Linear(action_expert_config.width, action_expert_config.width)
         else:
-            self.state_proj = nn.Linear(action_dim, action_expert_config.width)
+            self.state_proj = nn.Linear(state_dim, action_expert_config.width)
             self.action_time_mlp_in = nn.Linear(2 * action_expert_config.width, action_expert_config.width)
             self.action_time_mlp_out = nn.Linear(action_expert_config.width, action_expert_config.width)
 

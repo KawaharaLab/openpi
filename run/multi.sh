@@ -62,7 +62,7 @@ mpiexec -np ${NNODES} --map-by ppr:1:node:PE=${OMP_NUM_THREADS} --bind-to core -
     python scripts/train_pytorch.py pi0_aic_cheatcode_lerobot \
       --exp_name ${RUN_NAME} \
       --batch_size 128 \
-      --num_workers 8 \
-      --num_train_steps 60000 \
+      --num_workers 4 \
+      --num_train_steps 50000 \
       --save_interval 10000 \
   "

@@ -7,8 +7,10 @@ from openpi import transforms
 from openpi.models import model as _model
 
 
-STATE_SLICE = slice(7, 13)
-ACTION_DIM = STATE_SLICE.stop - STATE_SLICE.start
+TCP_POSE_SLICE = slice(0, 7)
+TCP_VELOCITY_SLICE = slice(7, 13)
+TCP_ERROR_SLICE = slice(13, 19)
+ACTION_DIM = TCP_VELOCITY_SLICE.stop - TCP_VELOCITY_SLICE.start
 
 
 def make_aic_example() -> dict:
@@ -33,12 +35,12 @@ def _parse_image(image) -> np.ndarray:
 
 def _slice_state(state) -> np.ndarray:
     state = np.asarray(state)
-    return state[..., STATE_SLICE]
+    return np.concatenate([state[..., TCP_POSE_SLICE], state[..., TCP_ERROR_SLICE]], axis=-1)
 
 
 def _slice_actions(actions) -> np.ndarray:
     actions = np.asarray(actions)
-    return actions[..., STATE_SLICE]
+    return actions[..., TCP_VELOCITY_SLICE]
 
 
 @dataclasses.dataclass(frozen=True)
